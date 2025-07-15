@@ -1,0 +1,9 @@
+You will be given a window of {file_system} logs separated by newlines. Based on the current window of logs, you are required to predict whether the system is in a [Normal] or [Abnormal] state.
+
+# The window of log sequence that requires your anomaly detection is:
+    {logs}
+# And you should answer:
+    'System State:[Normal]' or System State:[Abnormal]'
+
+Determine if there are any anomalies in these logs and specify the output format: 'System State:[Normal]' or 'System State:[Abnormal]'.
+You should only output "System status :[Normal]" or "System status :[Abnormal]" verbatim. You don't need to output anything else

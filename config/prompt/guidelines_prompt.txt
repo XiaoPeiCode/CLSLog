@@ -1,0 +1,19 @@
+You will be given a window of {file_system} logs separated by newlines. Based on the current window of logs, you are required to predict whether the system is in a [Normal] or [Abnormal] state, along with a written description of your reasoning.
+
+# Notes:
+1. The system itself has a certain degree of fault tolerance, so even though some logs may contain error messages, it does not necessarily mean that the system is in an [Abnormal] state.
+2. A system in [Abnormal] state refers to a serious problem occurring within the system. For issues of lower severity, such as warnings, you should not classify them as exceptions.
+3. You only need to determine if there are any severe exceptions in the current log sequence; you do not need to identify potential hidden exceptions.
+
+
+# Each log entry contains two parts:(Log event ID - Raw content). The window of log sequence that requires your anomaly detection is():
+    {logs}
+
+{guidelines}
+The provided guidelines are very reliable. You need to trust the guidelines I provide to you first, unless there is more obvious and direct evidence to the contrary.
+
+# And you should answer:
+    'System State:[Normal]' or System State:[Abnormal]'
+
+Determine if there are any anomalies in these logs and specify the output format: 'System State:[Normal]' or 'System State:[Abnormal]'.
+You should first provide a brief explanation of your evaluation, and then always end your response with either 'System State:[Normal]' or 'System State:[Abnormal]' verbatim.

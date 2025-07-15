@@ -1,0 +1,18 @@
+You will be given a window of {file_system} logs separated by newlines. Based on the current window of logs, determine whether the system is currently in an [Abnormal] state or [Normal] state. Your response should be in the specified JSON format.
+
+# Notes:
+The system itself has a certain degree of fault tolerance, so even though some logs may contain warning messages, it does not necessarily mean that the system is in an [Abnormal] state.
+
+# The window of log sequence that requires your anomaly detection is:
+    {logs}
+
+# And You should output the result in the following JSON format:
+{
+  "system_state": "Normal or Abnormal",
+  "reason": "A brief explanation of why you classified the system state as [Normal] or [Abnormal]."
+}
+
+Please analyze the logs, explain your reasoning, and then conclude with either "system_state": "Normal" or "system_state": "Abnormal"
+
+
+

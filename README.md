@@ -1,24 +1,23 @@
 
 
 # CollaborLog: Efficient-Generalizable Log Anomaly Detection via Large-Small Model Collaboration in Software Evolution
-- [CollaborLog](#CollaborLog)
-  
-  - [Project Structure](#project-structure)
-  - [Datasets](#datasets)
-  - [Supplemental Result](#Supplemental Result)
-    - [Result of LogHub](##Results of Loghub)
-    - [Parameter Sensitivity Analysis](##Parameter Sensitivity Analysis)
-        - $\tau$
-        - k
-    - [Study of Evol-CoT](##Study of Evol-CoT)
-    - [Case Study](##Case Study)
-  - [Implement Detail](#Implement Detail)
-    - [Coordinator](##Coordinator)
-    - [Small Model](##Small Model)
-    - [LLM](##LLM)
-  - [Environment](#environment)
-  + [Run](#Run)
 
+- [CollaborLog](#collaborlog)
+- [Project Structure](#project-structure)
+- [Datasets](#dataset)
+- [Supplemental Result](#supplemental-result)
+  - [Results of LogHub](#results-of-loghub)
+  - [Parameter Sensitivity Analysis](#parameter-sensitivity-analysis)
+    - [$\tau$](#τ)
+    - [k](#k)
+  - [Study of Evol-CoT](#study-of-evol-cot)
+  - [Case Study](#case-study)
+- [Implement Detail](#implement-detail)
+  - [Coordinator](#coordinator)
+  - [Small Model](#small-model)
+  - [LLM](#llm)
+- [Environment](#️-environment)
+- [Run](#run)
 # CollaborLog
 Frequent software updates lead to log evolution, posing generalization challenges for current log anomaly detection. Traditional log anomaly detection research focuses on using small deep learning models (SMs), but these models inherently lack generalization due to their closed-world assumption. Large Language Models (LLMs) exhibit strong semantic understanding and generalization capabilities, making them promising for log anomaly detection. However, they suffer from computational inefficiencies.
 To balance efficiency and generalization, we propose a collaborative log anomaly detection scheme using an adaptive coordinator to integrate SM and LLM. The coordinator determines if incoming logs have evolved. Non-evolutionary los are routed to the SM, while evolutionary logs are directed to the LLM for detailed inference using the constructed Evol-CoT. To gradually adapt to evolution, we introduce the adaptive evolve mechanism (AEM), which updates the coordinator to redirect evolutionary logs identified by the LLM to the SM. Simultaneously, the SM is fine-tuned to inherit the LLM's judgment on these logs.

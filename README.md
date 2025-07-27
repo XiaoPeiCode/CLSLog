@@ -53,9 +53,19 @@ training, validation, and test sets.
 ## Parameter Sensitivity Analysis
 
 ### τ
+τ controls how many samples go to the LLM. Too small → high cost; too large → poor routing and degraded performance. We select a τ with low F1 and acceptable volume to balance both.
+The following figure small model’s F1-score on evolved logs under different τ values. Low F1 indicates expected drift. When τ < 40, evolved vs. non-evolved logs are hard to distinguish, causing unstable F1 scores.
+
+
 ![img.png](img/para.png)
+Under the Spark dataset, the changes in the percentile of the corresponding loss value with respect to the proportion of selected samples are as follows. It can be observed that at Q90, both the F1-Score and the downward trend of the proportion have an inflection point. Therefore, we choose $\tau$ as the turning point on the Spark dataset.
+
+![img.png](./img/img_2.png)
 ### k 
+We select the best k based on the small model’s F1-score on the validation set. Different k values cause only minor changes in the F1-score. The sensitivity analysis is shown in [1].
+
 ![img_3.png](img/img_3.png)
+
 
 ## Study of Evol-CoT
 ![img_4.png](img/img_4.png)
@@ -68,7 +78,81 @@ training, validation, and test sets.
 |                | **Certain**   | 7.66%              | 87.6%              | 3.69%                | 90.6%                |
 
 ## Case Study
+By guiding large models to think step by step, it not only helps reduce hallucinations but also allows the demonstration of the large model's reasoning process, providing more interpretability for log anomaly detection.
 
+### Evol Detect
+
+Given the current log sequence and similar historical log sequences, large models can determine whether there is an evolutionary relationship between the two through semantic analysis.
+
+For example:
+
+Given logs:
+```text
+ - Driver commanded a shutdown;
+ - MemoryStore cleared;
+ - BlockManager stopped;
+ - Shutdown hook called;
+ - Deleting directory /usr/local/tmp/nm-local-dir/usercache/root/appcache/application_1630409651274_0110/spark-ab99e583-a469-4d2b-8e0d-e6f725459c1d;
+ - Driver requested a total number of 0 executor(s).;
+ - Driver terminated or disconnected! Shutting down. sp3:35521;
+ - Driver terminated or disconnected! Shutting down. sp3:35521;
+ - Final app status: SUCCEEDED, exitCode: 0;
+ - Unregistering ApplicationMaster with SUCCEEDED;
+ - Waiting for application to be successfully unregistered.;
+ - Deleting staging directory hdfs://172.17.0.2:9000/user/root/.sparkStaging/application_1630409651274_0110;
+ - Driver commanded a shutdown;
+ - MemoryStore cleared;
+ - BlockManager stopped;
+ - Shutdown hook called;
+ - Deleting directory /usr/local/tmp/nm-local-dir/usercache/root/appcache/application_1630409651274_0110/spark-fba93b39-e1c0-48b0-8988-af6dcfa2f569;
+```
+
+
+The  similar log retrieved is
+```text
+ - Driver commanded a shutdown;
+ - MemoryStore cleared;
+ - BlockManager stopped;
+ - Shutdown hook called;
+ - Deleting directory /usr/local/tmp/nm-local-dir/usercache/root/appcache/application_1629275090372_0014/spark-b39df885-178f-43b9-a780-26d94a1e51ca;
+ - Driver requested a total number of 0 executor(s).;
+ - Driver terminated or disconnected! Shutting down. master:34041;
+ - Driver terminated or disconnected! Shutting down. master:34041;
+ - Final app status: SUCCEEDED, exitCode: 0;
+ - Unregistering ApplicationMaster with SUCCEEDED;
+ - Waiting for application to be successfully unregistered.;
+ - Deleting staging directory hdfs://172.17.0.5:9000/user/root/.sparkStaging/application_1629275090372_0014;
+ - Shutdown hook called;
+ - Saved output of task 'attempt_20210818101826_0006_m_000004_0' to hdfs://172.17.0.5:9000/user/root/HiBench/Wordcount/Output/_temporary/0/task_20210818101826_0006_m_000004;
+ - attempt_20210818101826_0006_m_000004_0: Committed;
+ - Finished task 4.0 in stage 1.0 (TID 28). 1459 bytes result sent to driver;
+ - Saved output of task 'attempt_20210818101826_0006_m_000000_0' to hdfs://172.17.0.5:9000/user/root/HiBench/Wordcount/Output/_temporary/0/task_20210818101826_0006_m_000000;
+ - attempt_20210818101826_0006_m_000000_0: Committed;
+ - Finished task 0.0 in stage 1.0 (TID 24). 1459 bytes result sent to driver;
+ - Driver commanded a shutdown;
+ - MemoryStore cleared;
+ - BlockManager stopped;
+ - Shutdown hook called;
+ - Deleting directory /usr/local/tmp/nm-local-dir/usercache/root/appcache/application_1629275090372_0014/spark-33c13cb9-ba68-41cc-b153-5448e12a55f0;
+```
+
+Let the LLM determine whether there is an evolutionary relationship between the two, and output the reasoning process to enhance reliability.
+```json
+{
+  "IsEvol": "True",
+  "reason": "The log sequence in 'evolution_after' shows a normal system shutdown state, consistent with the semantics of 'evolution_before'. Both sequences represent the standard Spark application termination process, including driver shutdown, resource cleanup, and unregistration with final status SUCCEEDED. The differences are minor and expected due to software evolution: (1) application IDs and Spark directory UUIDs have changed (e.g., application_1629788447699_0105 → application_1630409651274_0110, different UUIDs), which is typical across runs; (2) the master address changed from 'master:45189' to 'sp3:35521', reflecting a different execution environment or cluster configuration, but the log message structure and meaning remain unchanged. There are no significant changes in log order, dependencies, or semantics. The repetition of shutdown-related logs (likely from multiple components or phases) is preserved identically. These are characteristic of log entry evolution (e.g., updated identifiers and hostnames) without altering the underlying system behavior or log meaning. Therefore, an evolutionary relationship exists."
+}
+```
+### AD Agent
+
+For the above example, first, since the categories of the similar logs are highly consistent, this log is determined to be a sample with high certainty. By taking the top-k similar logs as reference examples, the large model is enabled to demonstrate the reasoning process through the methods of Chain-of-Thought (CoT) and few-shot learning, and finally obtain the judgment on the system state.
+
+```text
+{
+    "System State": "Normal",
+    "reason": "The Given_Logs are semantically consistent with the most aligned log sequence in Similar_Logs. Both follow a pattern of a controlled shutdown process: starting with 'Driver commanded a shutdown', followed by resource cleanup (MemoryStore cleared, BlockManager stopped, Shutdown hook called), directory deletion, driver terminating, final app status marked as 'SUCCEEDED' with exitCode 0, unregistering the ApplicationMaster successfully, and repeating shutdown steps for additional directories. Differences in specific directory paths and hostnames (e.g., 'sp3' vs 'master') are expected as they are application-specific and do not indicate anomalies. Since the Similar_Logs_labels are all 0 (assumed to represent normal state), the current system state is Normal."
+}
+```
 # Implement Detail
 ## Coordinator
 First, we use a pre-trained BERT to extract the embedding (768-dimensional) of each log entry. Then, we aggregate the embeddings of all log entries in a log sequence by summing and averaging to obtain the embedding of the entire sequence. This embedding is then input into a deep autoencoder, and finally, the reconstruction loss is output.

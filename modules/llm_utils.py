@@ -67,6 +67,40 @@ def completion_usage_to_dict(completion_usage):
         #     "cached_tokens": completion_usage.prompt_tokens_details.cached_tokens
         # }
     }
+
+def llm_json_results(prompts, llm_config):
+    """
+    给定 prompts，返回解析前和解析后的内容
+    """
+    if not prompts or len(prompts) <= 0:
+        return None
+
+    # 设置事件循环策略
+    if platform.system() == 'Windows':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+    # 运行主协程
+    common_params = {
+        "model": "qwen-plus",
+        "top_p": 0.9,
+        "temperature": 0.7,
+        "response_format": {"type": "json_object"},
+        "presence_penalty": 0.1,
+    }
+
+    # 分批处理 prompts
+    llm_outputs = asyncio.run(process_prompts_in_batches(prompts, llm_config), debug=False)
+    llm_answer = [json.loads(i.choices[0].message.content) for i in llm_outputs]
+    llm_usage = [completion_usage_to_dict(i.usage) for i in llm_outputs]
+
+    # # 转换为 DataFrame
+    # results = pd.DataFrame(llm_answer)
+    # results['predicted_label'] = results['system_state'].apply(lambda x: int(x == "Abnormal"))
+    
+    # # llm_usage_df = pd.DataFrame(llm_usage)
+
+    return llm_answer,llm_usage
+
 def get_json_results(prompts, llm_config):
     """
     给定 prompts，返回解析前和解析后的内容

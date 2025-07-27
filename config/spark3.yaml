@@ -1,33 +1,24 @@
-# 配置文件: bert_knn_config.yaml
-
 dataset_name: spark
-dataset_path: /home/xiaopei/XPLog/Dataset/Logevol/
+dataset_path: ./Dataset/Logevol/
 bert_model: 'bert-base-uncased'
 cache_dir: './cache_dir/'
 
 result_dir: './results/evlogs/'
-# sample_size: 100000
 
-# 数据集划分配置
 train_df: 'spark2'
 test_df: 'spark3'
 
-knn_metric: 'cosine' #euclidean
+knn_metric: 'cosine'
 
-# 滑动窗口配置
 window_size: 10
 step_size: 10
-# 嵌入生成配置
-embedding_method: 'mean'  # 可选值: 'concat', 'individual', 'mean'（求平均)
+embedding_method: 'mean'
 
-#是否进行聚类
 use_hdbscan: False
-min_cluster_size: 3 # 控制每个簇的最小大小，越大则小簇越容易被丢弃	更大 → 数据减少更多
-min_samples: 2 # 控制密度估计的敏感度，越小则更多点会被视为核心点	更小 → 数据减少更多
+min_cluster_size: 3
+min_samples: 2
 cluster_detail: True
-# min_cluster_size
-# KNN 模型配置
-# k: [3,4,5,6,7,8,9] 
+
 k: 5
 
 use_siamese_network: True
@@ -35,16 +26,15 @@ cl_num_epochs: 10
 batch_size: 256
 eval_in_train: True
 
-use_large_model: False # fuzzy_sample:
-fuzzy_frac: 0.2 
+use_large_model: False
+fuzzy_frac: 0.2
 similarity_threshold: 0.95
 
-wandb_mode: 'disabled'  # 禁用 wandb ; online; offline
+loss_threshold_quantile: 0.9
+wandb_mode: 'disabled'
 AE:
   hidden_dims: [64,128,64]
   model_path: "./cache_dir/model/bgl_detection.pkl"
   batch_size: 256
-  lr : 0.001
-  epoch: 50
-
-
+  lr: 0.001
+  epoch: 5

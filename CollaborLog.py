@@ -1,4 +1,3 @@
-# 简单的日志异常检测 Pipeline 使用 BERT 和 KNN 或孪生网络（启用多 GPU 加速）
 import json
 import time
 import pandas as pd
@@ -469,15 +468,11 @@ def main(config):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     
-    dfs = load_evlog_data(file_path=f"/home/xiaopei/XPLog/Dataset/Logevol/{config['train_df']}",use_cache=True)    # 嵌入已经生成，可以直接使用，无需重复生成
+    dfs = load_evlog_data(file_path=f"./Dataset/Logevol/{config['train_df']}",use_cache=True)    # 嵌入已经生成，可以直接使用，无需重复生成
     train_df,_,valid_df = dfs['train'],dfs['test'],dfs['valid']
-    # dfs = load_evlog_data(file_path="/home/xiaopei/XPLog/Dataset/Logevol/spark3",use_cache=True)    # 嵌入已经生成，可以直接使用，无需重复生成
-    # _,test_df,valid_df = dfs['train'],dfs['test'],dfs['valid']
-    dfs = load_evlog_data(file_path=f"/home/xiaopei/XPLog/Dataset/Logevol/{config['test_df']}",use_cache=True)    # 嵌入已经生成，可以直接使用，无需重复生成
+    dfs = load_evlog_data(file_path=f"./Dataset/Logevol/{config['test_df']}",use_cache=True)    # 嵌入已经生成，可以直接使用，无需重复生成
     _,test_df,_ = dfs['train'],dfs['test'],dfs['valid']
     
-    # test_df = pd.read_csv("/home/xiaopei/XPLog/Dataset/Logevol/spark2/test_df.csv")
-    # test_df['embedding'] = test_df['embedding'].apply(ast.literal_eval)
 
     # train_df = test_df
     train_embeddings = np.vstack(train_df['embedding'].values)
@@ -674,10 +669,19 @@ def main(config):
     original_test_embeddings = test_embeddings.copy()
     original_valid_embeddings = valid_embeddings.copy()
     if config.get('use_siamese_network', False):
-        print("训练孪生网络")
+
         embedding_dim = train_embeddings.shape[1]
+
+        
+        print("训练孪生网络")
+        start_time = time.time()
         siamese_model = train_siamese_network(train_embeddings, train_df['label'].values,test_embeddings,test_df['label'].values, embedding_dim,num_epochs=config["cl_num_epochs"],
-                                              batch_size=config['batch_size'])
+                                              batch_size=config['batch_size'])        # end_time = time.time()
+        end_time = time.time()
+        execution_time = end_time - start_time
+        print(f"孪生网络耗时: {execution_time:.4f} 秒，样本数目: {len(original_valid_embeddings)}")
+    
+    
         # 使用孪生网络生成新的嵌入
         train_embeddings = generate_siamese_embeddings(siamese_model, train_embeddings, batch_size=512)
         test_embeddings = generate_siamese_embeddings(siamese_model, test_embeddings, batch_size=512)
@@ -691,355 +695,147 @@ def main(config):
         # test_embeddings = [siamese_model.forward_once(torch.tensor(e, dtype=torch.float).to(device)).cpu().detach().numpy() for e in test_embeddings]
         # train_embeddings = np.vstack(train_embeddings)
         # test_embeddings = np.vstack(test_embeddings)
-        
+
+
     AE_model = train_AE(train_embeddings=original_train_embeddings, config=config)
+    start_time = time.time()
     valid_losses = infer_AE(AE_model, original_valid_embeddings, batch_size=512)
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"代码执行耗时: {execution_time:.4f} 秒，样本数目: {len(original_valid_embeddings)}")
+
+    
     test_losses = infer_AE(AE_model, original_test_embeddings, batch_size=512)
     save_path = f"cor_sensi_AE_CL_valid_{config['test_df']}.png"
     as_threshold_sensitivity_analysis(valid_losses,valid_losses, valid_embeddings, valid_labels, train_embeddings, train_labels, config,save_path)
-            # 检查是否使用孪生网络
+
     save_path = f"cor_sensi_AE_CL_test_{config['test_df']}.png"
     as_threshold_sensitivity_analysis(valid_losses,test_losses, test_embeddings, test_labels, train_embeddings, train_labels, config,save_path)
 
-     # 第三步：KNN 异常检测
+    # Step 3 利用训练的自编码器和选出的阈值进行样本分类
 
-    # 1. 计算训练集相似度阈值（排除自身）
-    nbrs_train = NearestNeighbors(n_neighbors=2, metric='cosine').fit(train_embeddings)
-    distances_train, _ = nbrs_train.kneighbors(train_embeddings)
-    train_max_similars = 1 - distances_train[:, 1]  # 取第二近邻（排除自身）
-    train_similars = 1 - distances_train  # 取第二近邻（排除自身）
-    # train_max_similars = np.max([i for i in train_similars[i]])  # 取第二近邻（排除自身）
-    print(stats_summary([np.max(i) for i in train_similars]))
-
-
-    # 2. 构建KNN模型（余弦相似度）
-    nbrs_test = NearestNeighbors(n_neighbors=config['k'], metric='cosine').fit(train_embeddings)
-    test_distances, test_indices = nbrs_test.kneighbors(test_embeddings)
-    test_similarities = 1 - test_distances  # 转换为相似度值[1,6](@ref)
-    test_max_similars = [np.max(i) for i in test_similarities]  # 取第二近邻（排除自身）
-
-
-      # 确定Fuzzy Logs阈值（基于训练集信息熵的75%分位数）
-    train_entropies = [entropy(np.bincount(train_labels[nbrs_test.kneighbors([emb])[1][0]])) 
-                      for emb in train_embeddings]
-       # 确定Fuzzy Logs阈值（基于训练集信息熵的75%分位数）
-    test_entropies = [entropy(np.bincount(train_labels[nbrs_test.kneighbors([emb])[1][0]])) 
-                      for emb in test_embeddings]
-       
-    print("train_max_similars")
-    print(stats_summary(train_max_similars))
-    print("test_similarities")
-    print(stats_summary( 1 - test_distances[:,1]))
-    print("train_entropies")
-    print(stats_summary(train_entropies))
+    print("**********Cooedinator inference Start ************")
+    selected_loss_threshold = np.quantile(valid_losses,0.9 )  # 选择阈值 config['loss_threshold_quantile']
+    print(f"Selected loss threshold: {selected_loss_threshold:.4f}")
+    test_losses = infer_AE(AE_model, original_test_embeddings, batch_size=512)    
+    evlogs_indices = np.where(test_losses >= selected_loss_threshold)[0]  # 选择高损失样本作为演化日志
+    non_evlogs_indices = np.where(test_losses < selected_loss_threshold)[0]  # 选择低损 
     
+    evlogs_embeddings = test_embeddings[evlogs_indices]
+    evlogs_labels = test_labels[evlogs_indices]
+    evlogs_contents = test_df.iloc[evlogs_indices, test_df.columns.get_loc('content')].values  # 获取内容
+    print(f"Evlogs samples: {len(evlogs_embeddings)},portion: {len(evlogs_embeddings) / len(test_embeddings):.4f}")
+    print(f"Non-Evlogs samples: {len(test_embeddings) - len(evlogs_embeddings)},portion: {(len(test_embeddings) - len(evlogs_embeddings)) / len(test_embeddings):.4f}")
+    non_evlogs_embeddings = test_embeddings[non_evlogs_indices]
+    non_evlogs_labels = test_labels[non_evlogs_indices] 
+     # Small Model Anomaly detection
+    print("**********Small Model anomaly detection Start ************")
+    knn_predictions, f1_all, pr_all, re_all,acc = knn_eval(train_embeddings, train_labels, non_evlogs_embeddings, non_evlogs_labels,config['k'])
+    print(f"Non-Evlogs f1:{f1_all:.4f}, pr:{pr_all:.4f}, re:{re_all:.4f},acc:{acc:.4f}")
     
-
-
-    # 测试选择最佳的参数
-    wandb.init(
-    project= wandb_project, # train_df: 'spark2'
-    mode=config['wandb_mode'],
-    name=f"coordinator ({config['train_df']},{config['test_df']},evlog,fuzzy log)",
-    tags=['coordinator', config['dataset_name']],
-    config={
-        "component": "Train_SM",
-        "dataset": config['dataset_name'],
-        'param_name': {
-            # 数据集划分配置
-            'train_df': config['train_df'],
-            'test_df': config['test_df'],
-            'config':config
+    # Evol-Cot anomaly detection
+    print("**********Evol-Cot anomaly detection Start ************")
+    
+    ## RAG prepare
+    nbrs_evlogs = NearestNeighbors(n_neighbors=config['k'], metric='cosine').fit(train_embeddings)
+    evlogs_distances, evlogs_indices = nbrs_evlogs.kneighbors(evlogs_embeddings) #evlogs_distances, evlogs_indices维度都是 len(evlogs_embeddings) * k
+    evlogs_similarities = 1 - evlogs_indices  #
+    test_max_similars = [np.max(i) for i in evlogs_similarities]  # 取第二近邻（排除自身）
+    
+    evol_detect_results = []
+    for index in tqdm(range(len(evlogs_embeddings)), desc="Processing Evlogs"):
+        evlogs_content = evlogs_contents[index]
+        evlogs_label = evlogs_labels[index]
+        
+        ### get top-k neighbors
+        similarities = evlogs_similarities[index]
+        neighbor_indices = evlogs_indices[index]
+        neighbor_labels = train_labels[neighbor_indices]
+        neighbor_contents = train_contents[neighbor_indices]    
+        
+        ## Evol relationship detection
+        prompt_messages = []
+        for i in range(len(neighbor_indices)):
+            neighbor_content = neighbor_contents[i]
+            neighbor_label = neighbor_labels[i]
+            user_prompt = prompt_dicts['Evol_Detect']["user_prompt"].format(file_system=config['dataset_name'],
+                                                                            evolution_before=neighbor_content,evolution_after= evlogs_content)
+            if i == 0:
+                print(user_prompt)
+            prompt_message = [{"role":"system","content":prompt_dicts['Evol_Detect']["system_prompt"]},
+                            {"role": "user", "content":user_prompt} ]
+            prompt_messages.append(prompt_message)
+        
+        # Get LLM results
+        llm_answer, llm_usage = llm_utils.llm_json_results(prompt_messages, prompt_config["LLM"])
+        
+        exist_evol_relation = False
+        IsEvol_results = [ i['IsEvol'] for i in llm_answer]
+        evol_detect_result = {
+            'evlogs_content': evlogs_content,
+            'evlogs_label': int(evlogs_label),   # 或直接处理值
+            'neighbor_contents': neighbor_contents,
+            'neighbor_labels':  [int(x) for x in neighbor_labels],
+            'IsEvol_results':IsEvol_results,
+            'llm_answer': llm_answer,
+            'llm_usage': llm_usage, 
+            'similarities': [int(x) for x in similarities]
             }
-        }
-    )
-
-    th_list = np.arange(0,1,0.05)
-    # 理论上，相似度越低，判断效果越差； （低->高）
-    # 理论上，信息熵越大，不确定性越高，预测效果越低（高->低）
-    fuzzy_log_thresholds = np.arange(0.9,1,0.001)
-
-    tag_3 =[]
-    for i in len(fuzzy_log_thresholds):
-        tag_1,tag_2 = [],[]
-        # fuzzy_log_threshold = np.quantile(train_entropies, th)  # 自动适应数据分布test_entropies
-        # evlog_threshold = np.quantile(train_max_similars, th) test_max_similars
+        print(evol_detect_result)
         
-        fuzzy_log_threshold = np.quantile(test_entropies, fuzzy_log_thresholds[i])  # 自动适应数据分布
-        evlog_threshold = np.quantile(test_max_similars, th) 
+        evol_detect_results.append(evol_detect_result)
+        util.save_json(evol_detect_results, f"{result_dir}/evol_detect_results.json")
+        ## AD Agent Anomaly Dectection
+        print("**********AD Agent anomaly detection Start ************")
+        
+        # # 根据Top-K相似的邻居的标签和相似度计算当前样本的不确定性（用交叉熵预估)，然后选定一个不确定性阈值，将不确定性较大的值用uncertain_detect进行检测。
+        # # 计算每个类别的概率分布
+        # label_diffs = np.abs(neighbor_labels - evlogs_label)
+        # diff_indices = np.where(label_diffs == 1)[0]
+        # if len(diff_indices) > 0:
+        #     positive_prob = np.sum(neighbor_labels[diff_indices]) / len(diff_indices)
+        #     negative_prob = 1 - positive_prob
+        #     probabilities = np.array([positive_prob, negative_prob])
 
-        for i in range(len(test_embeddings)):
-            # test_similarities = 1 - test_distances  # 转换为相似度值[1,6](@ref)
-            # max_sim = np.max(test_similarities[i])
-            max_sim = np.max(test_similarities[i])
-            neighbor_labels = train_labels[test_indices[i]]
+        #     # 计算每个相似样本的不确定性（交叉熵）
+        #     sample_uncertainties = -np.log(probabilities[neighbor_labels[diff_indices].astype(int)]) * similarities[diff_indices]
+        #     # 利用相似度作为权重，计算当前样本的不确定性
+        #     uncertain_score = np.sum(sample_uncertainties)
+        # else:
+        #     uncertain_score = 0  # 如果没有label_diff为1的情况，不确定性设为0
             
-            ent = entropy(np.bincount(neighbor_labels))
-            pos_count = np.sum(neighbor_labels == 1)
-            neg_count = np.sum(neighbor_labels == 0)
-            label_diff = abs(pos_count - neg_count)
-            
-            if max_sim <= evlog_threshold:
-                tag_1.append(i)  # 演化日志
-                
-            if ent >= fuzzy_log_threshold:  # 允许差距阈值 #  or label_diff <= 1
-                tag_2.append(i)  # 模糊样本
-            if label_diff <= 1 and th == th_list[0]:
-                tag_3.append(i)
-            
-        print(f" start Q{th},fuzzy_log_threshold:{fuzzy_log_threshold},evlog_threshold:{evlog_threshold}")
-        knn_predictions,f1_1,pr_1,re_1 = knn_eval(train_embeddings,train_labels, test_embeddings[tag_1], test_labels[tag_1],config['k'])
-        print(f"Evlogs candinate knn evluate result({len(knn_predictions)}):")
-        print(f"f1:{f1_1:.5f},pr:{pr_1:.5f},re:{re_1:.5f}")
-        
-        knn_predictions,f1_2,pr_2,re_2 = knn_eval(train_embeddings,train_labels, test_embeddings[tag_2], test_labels[tag_2],config['k'])
-        print(f"Fuzzy Logs knn evluate result({len(knn_predictions)}):")
-        print(f"f1:{f1_2:.5f},pr:{pr_2:.5f},re:{re_2:.5f}")
-
-        print("end\n")
-        tag1_ratio = len(tag_1) / len(test_embeddings) * 100
-        tag2_ratio = len(tag_2) / len(test_embeddings) * 100
-
-        wandb.log({"epoch":th,"threshold":th,'evlog_threshold':evlog_threshold,'fuzzy_log_threshold':fuzzy_log_threshold,
-                   "EvLogs ratio(%)":tag1_ratio,"EvLogs F1":f1_1,"EvLogs Pr":pr_1,"Evlogs Re":re_1,
-                   "FyLogs ratio(%)":tag2_ratio,"FyLogs F1":f1_2,"FyLogs Pr":pr_2,"FyLogs Re":re_2,
-                   })
-
-    knn_predictions,f1_3,pr_3,re_3 = knn_eval(train_embeddings,train_labels, test_embeddings[tag_3], test_labels[tag_3],config['k'])
-    print(f"Lable diff <= 1 knn evluate result({len(knn_predictions)}):")
-    print(f"f1:{f1_3:.5f},pr:{pr_3:.5f},re:{re_3:.5f}")
-        
-    wandb.finish()
-    
-    fuzzy_log_threshold = np.quantile(train_entropies, 0.001)  # 自动适应数据分布
-    evlog_threshold = np.quantile(train_max_similars, 0.80)
-    # 3. 分类逻辑
-    tags = []    
-    for i in range(len(test_embeddings)):
-        max_sim = np.max(test_similarities[i])
-        neighbor_labels = train_labels[test_indices[i]]
-        
-        ent = entropy(np.bincount(neighbor_labels))
-
-        pos_count = np.sum(neighbor_labels == 1)
-        neg_count = np.sum(neighbor_labels == 0)
-        label_diff = abs(pos_count - neg_count)
-        
-        if max_sim < evlog_threshold:
-            tags.append(1)  # 演化日志
-        elif ent >= fuzzy_log_threshold or label_diff <= 1:  # 允许差距阈值
-            tags.append(2)  # 模糊样本
-        else:
-            tags.append(3)  # 普通样本
-    # 4. 按tag分类结果
-    tag1_indices = np.where(np.array(tags) == 1)[0].tolist()
-    tag2_indices = np.where(np.array(tags) == 2)[0].tolist()
-    tag3_indices = np.where(np.array(tags) == 3)[0].tolist()
-
-    print(f"演化日志样本数: {len(tag1_indices)}")
-    print(f"模糊样本数: {len(tag2_indices)}")
-    print(f"普通样本数: {len(tag3_indices)}")
-            
-    # 5.对每种分类进行决策
-   
-    knn_predictions,f1,pr,re = knn_eval(train_embeddings, train_labels, test_embeddings, test_labels,config['k'])
-    print(f"ALL Logs knn evluate result({len(knn_predictions)}):")
-    print(f"f1:{f1:.5f},pr:{pr:.5f},re:{re:.5f}")
-    
-    knn_predictions,f1,pr,re = knn_eval(train_embeddings,train_labels, test_embeddings[tag1_indices], test_labels[tag1_indices],config['k'])
-    print(f"Evlogs candinate knn evluate result({len(knn_predictions)}):")
-    print(f"f1:{f1:.5f},pr:{pr:.5f},re:{re:.5f}")
-    
-    knn_predictions,f1,pr,re = knn_eval(train_embeddings,train_labels, test_embeddings[tag2_indices], test_labels[tag2_indices],config['k'])
-    print(f"Fuzzy Logs knn evluate result({len(knn_predictions)}):")
-    print(f"f1:{f1:.5f},pr:{pr:.5f},re:{re:.5f}")
-    
-    knn_predictions,f1,pr,re = knn_eval(train_embeddings,train_labels, test_embeddings[tag3_indices], test_labels[tag3_indices],config['k'])
-    print(f"Other Logs knn evluate result({len(knn_predictions)}):")
-    print(f"f1:{f1:.5f},pr:{pr:.5f},re:{re:.5f}")
-       
-
-
-
-    
-    # KNN 异常检测
-    k = config['k']
-    nbrs = NearestNeighbors(n_neighbors=config['k'], metric='cosine').fit(train_embeddings)
-    # 进行 KNN 查询，使用 tqdm 展示进度条
-    distances, indices = nbrs.kneighbors(test_embeddings) # (m, k)
-    similarities = 1 - distances  # 余弦相似度
-    similarity_values = similarities.flatten()  # 展平所有相似度值为一维数组
-    similarity_threshold = np.percentile(similarity_values, 5)  # 计算Q90阈值
-    print(f"similarity_threshold:{similarity_threshold}")
-    print(f"Calculated similarity threshold (Q5): {similarity_threshold}")
-    temp_df = pd.DataFrame()
-    temp_df['all_similarities'] = similarity_values
-    print(temp_df.describe())
-    
-    uncertain_knn_predictions = []
-    knn_predictions = []
-    uncertain_samples = []
-    scores = []
-    for i, neighbors in enumerate(tqdm(indices, desc="Calculating Predictions")):
-        neighbor_labels = train_labels[neighbors]
-        positive_count = np.sum(neighbor_labels)
-        negative_count = len(neighbor_labels) - positive_count
-        score = calAnomalyScore(similarities[i],neighbor_labels)
-        scores.append(abs(score))
-        anomaly_prediction = int(np.sum(neighbor_labels) > k / 2)
-        similar_samples = train_contents[neighbors]
-        knn_predictions.append(anomaly_prediction)
-
-        similarity_sum = np.sum(similarities[i])
-        sum_sim_th = config['similarity_threshold'] * config['k']
-        # 如果正负样本比例接近，或者相似度之和低于阈值，标记为模糊样本或演化日志
-        similarity_threshold = 0.99
-        if identifyEvLogs(similarities[i],neighbor_labels,score_threshold=2,similarity_threshold=similarity_threshold):
-            uncertain_samples.append((i, test_df.iloc[i, test_df.columns.get_loc('content')], test_df.iloc[i, test_df.columns.get_loc('label')],
-                                    similar_samples, similarities[i], neighbor_labels))
-            uncertain_knn_predictions.append(anomaly_prediction)
-
-    temp_df = pd.DataFrame()
-    temp_df['scores'] = scores
-    print(temp_df.describe())
-
-    
-    # 统计模糊样本的比例
-    uncertain_ratio = len(uncertain_samples) / len(test_df)
-    print(f"Uncertain sample ratio: {(uncertain_ratio * 100):.2f} % ({len(uncertain_samples)}/ {len(test_df)})")
-    
-    # knn_predictions, uncertain_samples_index, uncertain_knn_predictions = knn_anomaly_detection(
-    #     train_embeddings, train_df['label'].values, test_embeddings, config['k'], config["fuzzy_frac"], config["similarity_threshold"]
-    # )
-
-
-    test_df['cl_knn_predicted_label'] = knn_predictions
-    # test_df.to_csv(os.path.join(result_dir, 'knn_anomaly_detection_results.csv'), index=False)
-    evaluate_model(test_df,predicted_label='cl_knn_predicted_label',file='cl_knn_evaluation_results.txt')
-
-
-    # 对模糊样本进行检测
-    # for i in uncertain_samples_index:
-    #     uncertain_samples.append((i, test_df.iloc[i, test_df.columns.get_loc('content')], test_df.iloc[i, test_df.columns.get_loc('label')],
-    #                         similar_samples, similarities[i], neighbor_labels))
-
-    uncertain_samples_df = pd.DataFrame(uncertain_samples, columns=['index', 'content', 'label', 'similar_samples', 'similarities', 'neighbor_labels'])
-    uncertain_samples_df['knn_label']= uncertain_knn_predictions
-
-    # 模糊样本KNN的结果
-    print("-------uncertain_samples KNN-------")
-    evaluate_model(uncertain_samples_df,predicted_label='knn_label',file='uncertain_samples_knn.txt')
-
-    # 对于模糊样本，使用大模型进行进一步处理
-    if config.get('use_large_model', False):
-        # 获得prompts
-        cot_prompts = []
-        our_prompts = []
-
-        labels = []
-        for i, content,label,similar_samples, similarities,neighbor_labels in uncertain_samples:
-            top_k_logs = "<----start top_k_logs---->"
-            k = 1
-            for similar_sample,similarity,neighbor_label in zip(similar_samples, similarities,neighbor_labels):
-                if neighbor_label==0:
-                    system_state = "Normal"
-                else:
-                    system_state = "Abnormal"
-                item = f" ### Top-{k} samples:\n####similarity:{similarity}\n "
-                item += f"#### The system state of this log sequence :{system_state}\n"
-
-                item += f"#### logs:\n{similar_sample}"
-                k = k + 1
-
-                top_k_logs += item
-            top_k_logs += '<--- end top_k_logs ---> '
-            labels.append(label)
-            our_prompt_content = prompt_config["our_prompt"].format(logs=content,file_system=config['dataset_name'], top_k_logs=top_k_logs)
-            cot_prompt_content =  prompt_config["cot_prompt"].format(logs=content,file_system=config['dataset_name'])
-            our_prompt = [{"role":"system","content":prompt_config["system_prompt"]},
-                            {"role": "user", "content":our_prompt_content} ]
-            cot_prompt = [{"role":"system","content":prompt_config["system_prompt"]},
-                            {"role": "user", "content":cot_prompt_content}]
-            our_prompts.append(our_prompt)
-            cot_prompts.append(cot_prompt)
-            # print(our_prompt_content)
-            # print(cot_prompt_content)
-        
-        start_time = time.perf_counter()       
-        our_results,llm_usage,llm_answers= llm_utils.get_json_results(our_prompts,prompt_config["LLM"])
-        end_time = time.perf_counter()
-        execution_time = end_time - start_time
-        print(f"execution_time:{execution_time}s")
-        # print(cot_results)
-        # print(our_results)
-        # print(labels)
-        with open(os.path.join(result_dir, 'qa_logs.txt'),'w') as f:
-           f.write(f"execution_time:{execution_time}s")
-           for i in range(len(cot_prompts)):
-                f.write(json.dumps(cot_prompts[i], ensure_ascii=False, indent=4))
-                f.write(f"\n------Label:{labels[i]}--------\n")
-                f.write(json.dumps(llm_answers[i], ensure_ascii=False, indent=4))
-                f.write("\n--------------\n")
-
-        llm_usage_file = os.path.join(result_dir, 'our_llm_usage.json')
-        with open(llm_usage_file,'w') as f:
-           json.dump(llm_usage,f)
-
-        our_results["label"] = labels 
-        our_results['knn_label'] = uncertain_samples_df['knn_label']
-        evaluate_model(our_results,predicted_label='predicted_label',file='uncertain_our_evaluation_results.txt')
-           
-        cot_results,llm_usage,llm_answers = llm_utils.get_json_results(cot_prompts,prompt_config["LLM"])
-
-        cot_results["label"] = labels 
-        cot_results['knn_label'] = uncertain_samples_df['knn_label']
-
-        uncertain_samples_df["label"] = labels
-        cot_results.to_csv(os.path.join(result_dir, 'cot_results.csv'), index=False)
-        our_results.to_csv(os.path.join(result_dir, 'our_results.csv'), index=False)
-
-        
-        evaluate_model(cot_results,predicted_label='predicted_label',file='uncertain_cot_evaluation_results.txt')
-        
-
-
-
-                    
-            
-        # 得到结果
-        # 解析结果进行统计prompts
-
-
-    # 保存测试结果
-
-    # 将预测结果添加到 DataFrame 中
-    
-    test_df['cl_knn_predicted_label'] = knn_predictions
-    # test_df['knn_llm_predicted_label'] = final_predictions
-
-    # test_df.to_csv( os.path.join(result_dir, 'anomaly_detection_results.csv'), index=False)
-
-    # 评估模型性能
-    evaluate_model(test_df,predicted_label='cl_knn_predicted_label',file='cl_knn_evaluation_results.txt')
-    # evaluate_model(test_df,predicted_label='knn_llm_predicted_label',file='cl_knn_llm_evaluation_results.txt')
-
-
-    # 输出结果
-    # print(test_df[['log_message', 'label', 'predicted_label']])
-
-
+        # if uncertain_score > 0:
+        #     # 如果不确定性超过阈值，调用uncertain_detect进行检测
+        #     uncertain_detect_prompt = prompt_dicts['Uncertain_Detect']["user_prompt"].format(
+        #     file_system=config['dataset_name'],
+        #     evolution_content=evlogs_content,
+        #     neighbor_contents="\n".join(neighbor_contents)
+        #     )
+        #     uncertain_detect_message = [
+        #     {"role": "system", "content": prompt_dicts['Uncertain_Detect']["system_prompt"]},
+        #     {"role": "user", "content": uncertain_detect_prompt}
+        #     ]
+        #     uncertain_detect_result, uncertain_detect_usage = llm_utils.get_json_results(
+        #     [uncertain_detect_message], prompt_config["LLM"]
+        #     )
+        #     print(f"Uncertain detection result: {uncertain_detect_result}")
+        #     util.save_json(uncertain_detect_result, f"{result_dir}/uncertain_detect_result_{index}.json")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    
-    # parser.add_argument('--config', type=str, default='./config/evlog.yaml', help="Path to the configuration file")
+    current_dir = os.getcwd()
+    print("current_dir:", current_dir)
     parser.add_argument('--config', type=str, default='./config/spark3.yaml', help="Path to the configuration file")
     # parser.add_argument('--config', type=str, default='./config/collaborlog_hadoop3.yaml', help="Path to the configuration file")
 
     args = parser.parse_args()
     config = load_config(args.config)
     prompt_config = load_config('./config/prompt/prompt.yaml')
+    os.chdir("./CollaborLog/")
 
+    from utils import util  # Ensure 'util' is defined in the 'utils' module
+    prompt_dicts = util.load_prompts("./prompt/")
+    print("Loaded prompts:", prompt_dicts.keys())
     wandb_project = "CollaborLog_7_8_test"
 
     print(json.dumps(config,indent=2))

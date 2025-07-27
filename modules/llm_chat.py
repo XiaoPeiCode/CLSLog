@@ -8,8 +8,7 @@ import asyncio
 from openai import AsyncOpenAI
 import platform
 
-QWEN_API_KEY= 'sk-ad4c9b3a83ce4d2c9117764d8196a67d'
-# QWEN_API_KEY = "sk-08d0163f55f6483d9faf3e11aeea8157"
+QWEN_API_KEY= 'xxxx'
 
 # 创建异步客户端实例
 qwen_client = AsyncOpenAI(
@@ -48,23 +47,3 @@ async def qwen_chat_async(messages,common_params):
     tasks = [qwen_chat_async_task(message,common_params) for message in messages]
     results = await asyncio.gather(*tasks)
     return results
-
-if __name__ == '__main__':
-    # 设置事件循环策略
-    if platform.system() == 'Windows':
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    # 运行主协程
-    common_params = {
-    "model" : "qwen-plus",
-    "top_p": 0.9,
-    "temperature": 0.7,
-    "response_format": {"type": "json_object"},
-    "presence_penalty": 0.1,
-    }
-    messages=[
-        [{"role": "user", "content": '说json格式的 {\"result\":1}'}],
-        # [{"role": "user", "content": '说2'}],
-    ]
-    asyncio.run(qwen_chat_async_task(messages[0],common_params))
-    results = asyncio.run(qwen_chat_async(messages,common_params), debug=False)
-    print(results.choices[0].message.content)

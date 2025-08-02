@@ -47,8 +47,9 @@ We also practiced our approach on two open datasets, BGL and Zookeeper from LogH
 We also practiced our approach on two open datasets, BGL and Zookeeper, from LogHub. Similar to recent work on evolutionary logs, we set the earlier logs as the training set and the
 logs from 14 days later as the test set to ensure that the log patterns change over time. We also follow the standard 8:1:1 split, randomly dividing the logs for each software version into
 training, validation, and test sets.
-![img_1.png](img/img_1.png)
+<img width="1552" height="802" alt="image" src="https://github.com/user-attachments/assets/8d8e973b-7940-48a3-8c87-2b2d32b70eed" />
  On LogHub, our method achieved higher F1-scores than using either the small model or LLM alone.
+
 
 ## Parameter Sensitivity Analysis
 

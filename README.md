@@ -5,7 +5,9 @@
 - [CollaborLog](#collaborlog)
 - [Project Structure](#project-structure)
 - [Datasets](#dataset)
-- [Supplemental Result](#supplemental-result)
+- [Extend Result](#extend-result)
+  - [Ablation Study](#Ablation Study)
+  - [Results of LogHub](#results-of-loghub)
   - [Results of LogHub](#results-of-loghub)
   - [Parameter Sensitivity Analysis](#parameter-sensitivity-analysis)
     - [$\tau$](#τ)
@@ -44,15 +46,14 @@ We also practiced our approach on two open datasets, BGL and Zookeeper from LogH
 # Extend Result
 ## Ablation Study
 
-**Effect of Evol-CoT. **Evol-CoT customizes a log anomaly detection strategy for software evolution scenarios through task decomposition and RAG-based knowledge injection. As shown in Table~\ref{tab:ablation_results}, without Evol-CoT (\textbf{Vanilla}), the LLM struggles with evolved logs due to a lack of domain knowledge, achieving only 0.3298 F1 on the Spark dataset. In contrast, our method significantly improves performance by guiding the LLM with structured knowledge and subtasks. Within Evol-CoT, Evol Detect first identifies evolutionary relations for all evolved logs, and then a small portion (1.65\% on Spark and 1.72\% on Hadoop) is further routed to the AD Agent for detection. This is because most log sequences remain semantically consistent across software versions, with only a small portion being entirely new.
+**Effect of Evol-CoT.** Evol-CoT customizes a log anomaly detection strategy for software evolution scenarios through task decomposition and RAG-based knowledge injection. As shown in the following Table, without Evol-CoT (\textbf{Vanilla}), the LLM struggles with evolved logs due to a lack of domain knowledge, achieving only 0.3298 F1 on the Spark dataset. In contrast, our method significantly improves performance by guiding the LLM with structured knowledge and subtasks. Within Evol-CoT, Evol Detect first identifies evolutionary relations for all evolved logs, and then a small portion (1.65\% on Spark and 1.72\% on Hadoop) is further routed to the AD Agent for detection. This is because most log sequences remain semantically consistent across software versions, with only a small portion being entirely new.
 
-**Effect of AEM. ** AEM leverages the evolution relations identified by Evol Detect to update the Coordinator and SM, avoiding redundant LLM usage for similar samples. By propagating labels within each evolution relation, as shown in Table~\ref{tab:main_results}, AEM achieves high accuracy (99.32\% on Spark and 98.7\% on Hadoop), as the LLM can reliably determine whether one log sequence is a modified version of another. Moreover, even if a reused LLM result is incorrect, reprocessing the same log would not yield a better outcome. The core idea of AEM is to improve efficiency without compromising performance. As shown in Table~\ref{tab:main_results}, AEM further reduces the proportion of logs processed by the LLM (e.g., from 4.62\% to 2.44\% on Hadoop) while maintaining the SM's detection capability.
+**Effect of AEM.** AEM leverages the evolution relations identified by Evol Detect to update the Coordinator and SM, avoiding redundant LLM usage for similar samples. By propagating labels within each evolution relation, as shown in the following Table, AEM achieves high accuracy (99.32\% on Spark and 98.7\% on Hadoop), as the LLM can reliably determine whether one log sequence is a modified version of another. Moreover, even if a reused LLM result is incorrect, reprocessing the same log would not yield a better outcome. The core idea of AEM is to improve efficiency without compromising performance. As shown in Table~\ref{tab:main_results}, AEM further reduces the proportion of logs processed by the LLM (e.g., from 4.62\% to 2.44\% on Hadoop) while maintaining the SM's detection capability.
 
 <img width="722" height="550" alt="image" src="https://github.com/user-attachments/assets/79456aa9-b987-4f95-a254-4a42b7aa16dd" />
 
 ## Results of Loghub
-We also practiced our approach on two open datasets, BGL and Zookeeper, from LogHub. Similar to recent work on evolutionary logs, we set the earlier logs as the training set and the
-logs from 14 days later as the test set to ensure that the log patterns change over time. We also follow the standard 8:1:1 split, randomly dividing the logs for each software version into
+We also practiced our approach on two open datasets, BGL and Zookeeper, from LogHub. Similar to recent work on evolutionary logs, we set the earlier logs as the training set and the logs from 14 days later as the test set to ensure that the log patterns change over time. We also follow the standard 8:1:1 split, randomly dividing the logs for each software version into
 training, validation, and test sets.
 <img width="1552" height="802" alt="image" src="https://github.com/user-attachments/assets/8d8e973b-7940-48a3-8c87-2b2d32b70eed" />
  On LogHub, our method achieved higher F1-scores than the small model or LLM alone.
@@ -80,15 +81,6 @@ We select the best k based on the small model’s F1-score on the validation set
 ![img_3.png](img/img_3.png)
 
 
-## Study of Evol-CoT
-![img_4.png](img/img_4.png)
-
-|                |              | Spark 2 -> Spark 3 | Spark 2 -> Spark 3 | Hadoop 2 -> Hadoop 3 | Hadoop 2 -> Hadoop 3 |
-| -------------- | ------------ | ------------------ | ------------------ | -------------------- | -------------------- |
-|                |              | Proportion         | F1                 | Proportion           | F1                   |
-|  |       **Evol Detect**        | 8.5%               | 99.7%              | 4.82%                | 98.6%                |
-| **AD Agent**    | **Uncertain** | 1.43%              | 78.3%              | 0.97%                | 71.2%                |
-|                | **Certain**   | 7.66%              | 87.6%              | 3.69%                | 90.6%                |
 
 ## Case Study
 By guiding large models to think step by step, it not only helps reduce hallucinations but also allows the demonstration of the large model's reasoning process, providing more interpretability for log anomaly detection.

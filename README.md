@@ -53,7 +53,9 @@ We also practiced our approach on two open datasets, BGL and Zookeeper from LogH
 **Effect of AEM.** AEM leverages the evolution relations identified by Evol Detect to update the Coordinator and SM, avoiding redundant LLM usage for similar samples. By propagating labels within each evolution relation, as shown in the following Table, AEM achieves high accuracy (99.32% on Spark and 98.7% on Hadoop), as the LLM can reliably determine whether one log sequence is a modified version of another. Moreover, even if a reused LLM result is incorrect, reprocessing the same log would not yield a better outcome. The core idea of AEM is to improve efficiency without compromising performance. As shown in the Table, AEM further reduces the proportion of logs processed by the LLM (e.g., from 4.82% to 3.44% on Hadoop) while maintaining the SM's detection capability.
 
 <img width="1088" height="832" alt="image" src="https://github.com/user-attachments/assets/d8498e54-9695-488a-b10f-89837589d81b" />
-> **Proportion** indicates the percentage of samples handled by each component in the dataset. The **+AEM** is used to study how the adaptive evolution mechanism affects the coordinator's routing decisions and SM performance.
+
+**Proportion** indicates the percentage of samples handled by each component in the dataset. The **+AEM** is used to study how the adaptive evolution mechanism affects the coordinator's routing decisions and SM performance.
+
 ## Results of Loghub
 We also practiced our approach on two open datasets, BGL and Zookeeper, from LogHub. Similar to recent work on evolutionary logs, we set the earlier logs as the training set and the logs from 14 days later as the test set to ensure that the log patterns change over time. We also follow the standard 8:1:1 split, randomly dividing the logs for each software version into
 training, validation, and test sets.
@@ -64,7 +66,8 @@ training, validation, and test sets.
 This section presents the extended results of different large language models (LLMs) in the inter-version scenarios of Spark 2 to Spark 3 and Hadoop 2 to Hadoop 3. The Table compares the performance of Qwen-plus, deepseek, and GPT3.5 based on precision (Pr), recall (Re), and F1-score.
 It can be seen that all LLMs can achieve good results.
 
-<img width="810" height="424" alt="image" src="https://github.com/user-attachments/assets/d5a8b777-ab52-40d9-84ed-4f6a36938a00" />
+<img width="1432" height="606" alt="image" src="https://github.com/user-attachments/assets/9a4e0e78-4e3b-4965-967a-87e907333aaa" />
+
   <center>Table 6:Comparison of different LLMs(Inter-version)</center>
 
 ## Parameter Sensitivity Analysis

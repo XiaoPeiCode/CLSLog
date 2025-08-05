@@ -6,9 +6,9 @@
 - [Project Structure](#project-structure)
 - [Datasets](#dataset)
 - [Extend Result](#extend-result)
-  - [Ablation Study](#ablation Study)
+  - [Ablation Study](#ablation-tudy)
   - [Results of LogHub](#results-of-loghub)
-  - [Results of LogHub](#results-of-loghub)
+  - [Extend Results on different LLMs](#extend-results-on-different-LLMs)
   - [Parameter Sensitivity Analysis](#parameter-sensitivity-analysis)
     - [$\tau$](#τ)
     - [k](#k)
@@ -41,7 +41,7 @@ We conduct extensive experiments on LOGEVOL(\url{https://github.com/YintongHuo/E
 
 <img width="1428" height="286" alt="image" src="https://github.com/user-attachments/assets/a0263cd2-a2db-4205-8af2-ffacb4d86874" />
 
-  <center>Table 1: Statistics of LOGEVOL. </center>
+  <center>**Table 1: Statistics of LOGEVOL.**</center>
 
 We also practiced our approach on two open datasets, BGL and Zookeeper from LogHub(https://github.com/logpai/loghub).
 
@@ -53,7 +53,6 @@ We also practiced our approach on two open datasets, BGL and Zookeeper from LogH
 **Effect of AEM.** AEM leverages the evolution relations identified by Evol Detect to update the Coordinator and SM, avoiding redundant LLM usage for similar samples. By propagating labels within each evolution relation, as shown in the following Table, AEM achieves high accuracy (99.32% on Spark and 98.7% on Hadoop), as the LLM can reliably determine whether one log sequence is a modified version of another. Moreover, even if a reused LLM result is incorrect, reprocessing the same log would not yield a better outcome. The core idea of AEM is to improve efficiency without compromising performance. As shown in the Table, AEM further reduces the proportion of logs processed by the LLM (e.g., from 4.62% to 2.44% on Hadoop) while maintaining the SM's detection capability.
 
 <img width="722" height="550" alt="image" src="https://github.com/user-attachments/assets/79456aa9-b987-4f95-a254-4a42b7aa16dd" />
-  <center></center>
   
 ## Results of Loghub
 We also practiced our approach on two open datasets, BGL and Zookeeper, from LogHub. Similar to recent work on evolutionary logs, we set the earlier logs as the training set and the logs from 14 days later as the test set to ensure that the log patterns change over time. We also follow the standard 8:1:1 split, randomly dividing the logs for each software version into
@@ -66,6 +65,7 @@ This section presents the extended results of different large language models (L
 It can be seen that all LLMs can achieve good results.
 
 <img width="810" height="424" alt="image" src="https://github.com/user-attachments/assets/d5a8b777-ab52-40d9-84ed-4f6a36938a00" />
+  <center>Table 6:Comparison of different LLMs(Inter-version)</center>
 
 ## Parameter Sensitivity Analysis
 
@@ -88,7 +88,14 @@ We select the best k based on the small model’s F1-score on the validation set
 ## Case Study
 By guiding large models to think step by step, it not only helps reduce hallucinations but also allows the demonstration of the large model's reasoning process, providing more interpretability for log anomaly detection.
 
-### Evol Detect
+### A simple and intuitive CASE
+**Evolved Logs with Evolutionary Relationships:** As shown in the following Figure（a), the current log differs from the most similar historical log only by an additional entry used as supplementary information. The LLM first identifies this difference, then reasons that the added entry does not change the system behavior represented by the los, and finally correctly determines that the two logs are evolutionarily related.
+
+**Evolved Logs without Evolutionary Relationships:** As also shown in the following Figure (b), when the current log differs significantly in semantics from similar historical logs, no evolutionary relationship is identified. The log is then handled by the AD Agent. It first uses tools to determine that the log is a deterministic case (i.e., similar logs are all labeled as anomalies), and then applies RAG to retrieve relevant examples to help the LLM understand system behavior. The LLM analyzes the differences, finds them too large for reuse, and instead performs semantic anomaly detection—successfully identifying the anomaly and its type.
+<img width="1116" height="1090" alt="image" src="https://github.com/user-attachments/assets/e2753973-a3d8-47c6-9941-dad5b36bb948" />
+
+### Specific practical examples
+#### Evol Detect
 
 Given the current log sequence and similar historical log sequences, large models can determine whether there is an evolutionary relationship between the two through semantic analysis.
 
@@ -151,7 +158,7 @@ Let the LLM determine whether there is an evolutionary relationship between the 
   "reason": "The log sequence in 'evolution_after' shows a normal system shutdown state, consistent with the semantics of 'evolution_before'. Both sequences represent the standard Spark application termination process, including driver shutdown, resource cleanup, and unregistration with final status SUCCEEDED. The differences are minor and expected due to software evolution: (1) application IDs and Spark directory UUIDs have changed (e.g., application_1629788447699_0105 → application_1630409651274_0110, different UUIDs), which is typical across runs; (2) the master address changed from 'master:45189' to 'sp3:35521', reflecting a different execution environment or cluster configuration, but the log message structure and meaning remain unchanged. There are no significant changes in log order, dependencies, or semantics. The repetition of shutdown-related logs (likely from multiple components or phases) is preserved identically. These are characteristic of log entry evolution (e.g., updated identifiers and hostnames) without altering the underlying system behavior or log meaning. Therefore, an evolutionary relationship exists."
 }
 ```
-### AD Agent
+#### AD Agent
 
 For the above example, first, since the categories of the similar logs are highly consistent, this log is determined to be a sample with high certainty. By taking the top-k similar logs as reference examples, the large model is enabled to demonstrate the reasoning process through the methods of Chain-of-Thought (CoT) and few-shot learning, and finally obtain the judgment on the system state.
 

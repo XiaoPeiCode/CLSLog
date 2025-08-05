@@ -6,7 +6,7 @@
 - [Project Structure](#project-structure)
 - [Datasets](#dataset)
 - [Extend Result](#extend-result)
-  - [Ablation Study](#Ablation Study)
+  - [Ablation Study](#ablation Study)
   - [Results of LogHub](#results-of-loghub)
   - [Results of LogHub](#results-of-loghub)
   - [Parameter Sensitivity Analysis](#parameter-sensitivity-analysis)
@@ -39,19 +39,22 @@ To balance efficiency and generalization, we propose a collaborative log anomaly
 
 We conduct extensive experiments on LOGEVOL(\url{https://github.com/YintongHuo/EvLog}), a publicly available dataset that records software evolution activities. LOGEVOL is generated using the HiBench benchmarking suite~\cite{hibench}, which runs a diverse set of workflows ranging from basic to complex scenarios in Spark and Hadoop. A total of 22 workloads are executed across the system, covering a wider range of real-world scenarios compared to other public datasets. 
 
-![img.png](img/img.png)
+<img width="1428" height="286" alt="image" src="https://github.com/user-attachments/assets/a0263cd2-a2db-4205-8af2-ffacb4d86874" />
+
+  <center>Table 1: Statistics of LOGEVOL. </center>
 
 We also practiced our approach on two open datasets, BGL and Zookeeper from LogHub(https://github.com/logpai/loghub).
 
 # Extend Result
 ## Ablation Study
 
-**Effect of Evol-CoT.** Evol-CoT customizes a log anomaly detection strategy for software evolution scenarios through task decomposition and RAG-based knowledge injection. As shown in the following Table, without Evol-CoT (\textbf{Vanilla}), the LLM struggles with evolved logs due to a lack of domain knowledge, achieving only 0.3298 F1 on the Spark dataset. In contrast, our method significantly improves performance by guiding the LLM with structured knowledge and subtasks. Within Evol-CoT, Evol Detect first identifies evolutionary relations for all evolved logs, and then a small portion (1.65\% on Spark and 1.72\% on Hadoop) is further routed to the AD Agent for detection. This is because most log sequences remain semantically consistent across software versions, with only a small portion being entirely new.
+**Effect of Evol-CoT.** Evol-CoT customizes a log anomaly detection strategy for software evolution scenarios through task decomposition and RAG-based knowledge injection. As shown in the following Table, without Evol-CoT (**Vanilla**), the LLM struggles with evolved logs due to a lack of domain knowledge, achieving only 0.3298 F1 on the Spark dataset. In contrast, our method significantly improves performance by guiding the LLM with structured knowledge and subtasks. Within Evol-CoT, Evol Detect first identifies evolutionary relations for all evolved logs, and then a small portion (1.65% on Spark and 1.72% on Hadoop) is further routed to the AD Agent for detection. This is because most log sequences remain semantically consistent across software versions, with only a small portion being entirely new.
 
-**Effect of AEM.** AEM leverages the evolution relations identified by Evol Detect to update the Coordinator and SM, avoiding redundant LLM usage for similar samples. By propagating labels within each evolution relation, as shown in the following Table, AEM achieves high accuracy (99.32\% on Spark and 98.7\% on Hadoop), as the LLM can reliably determine whether one log sequence is a modified version of another. Moreover, even if a reused LLM result is incorrect, reprocessing the same log would not yield a better outcome. The core idea of AEM is to improve efficiency without compromising performance. As shown in Table~\ref{tab:main_results}, AEM further reduces the proportion of logs processed by the LLM (e.g., from 4.62\% to 2.44\% on Hadoop) while maintaining the SM's detection capability.
+**Effect of AEM.** AEM leverages the evolution relations identified by Evol Detect to update the Coordinator and SM, avoiding redundant LLM usage for similar samples. By propagating labels within each evolution relation, as shown in the following Table, AEM achieves high accuracy (99.32% on Spark and 98.7% on Hadoop), as the LLM can reliably determine whether one log sequence is a modified version of another. Moreover, even if a reused LLM result is incorrect, reprocessing the same log would not yield a better outcome. The core idea of AEM is to improve efficiency without compromising performance. As shown in the Table, AEM further reduces the proportion of logs processed by the LLM (e.g., from 4.62% to 2.44% on Hadoop) while maintaining the SM's detection capability.
 
 <img width="722" height="550" alt="image" src="https://github.com/user-attachments/assets/79456aa9-b987-4f95-a254-4a42b7aa16dd" />
-
+  <center></center>
+  
 ## Results of Loghub
 We also practiced our approach on two open datasets, BGL and Zookeeper, from LogHub. Similar to recent work on evolutionary logs, we set the earlier logs as the training set and the logs from 14 days later as the test set to ensure that the log patterns change over time. We also follow the standard 8:1:1 split, randomly dividing the logs for each software version into
 training, validation, and test sets.

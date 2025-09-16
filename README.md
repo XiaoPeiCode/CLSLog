@@ -85,7 +85,6 @@ The following figure small model’s F1-score on evolved logs under different τ
 
 Under the Spark dataset, the changes in the percentile of the corresponding loss value with respect to the proportion of selected samples are as follows. It can be observed that at Q90, both the F1-Score and the downward trend of the proportion have an inflection point. Therefore, we choose $\tau$ as the turning point on the Spark dataset.
 
-![img.png](./img/img_2.png)
 ### k 
 We select the best k based on the small model’s F1-score on the validation set. Different k values cause only minor changes in the F1-score. The sensitivity analysis is shown in [1].
 

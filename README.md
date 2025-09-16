@@ -55,8 +55,9 @@ We also practiced our approach on two open datasets, BGL and Zookeeper from LogH
 **Effect of Evol-CoT.** Evol-CoT customizes a log anomaly detection strategy for software evolution scenarios through task decomposition and RAG-based knowledge injection. As shown in the following Table, without Evol-CoT (**Vanilla**), the LLM struggles with evolved logs due to a lack of domain knowledge, achieving only 0.3298 F1 on the Spark dataset. In contrast, our method significantly improves performance by guiding the LLM with structured knowledge and subtasks. Within Evol-CoT, Evol Detect first identifies evolutionary relations for all evolved logs, and then the portion (7.91% on Spark and 4.05% on Hadoop) is further routed to the AD Agent for detection. This is because most log sequences remain semantically consistent across software versions, with only a small portion being entirely new.
 
 **Effect of AEM.** AEM leverages the evolution relations identified by Evol Detect to update the Coordinator and SM, avoiding redundant LLM usage for similar samples. By propagating labels within each evolution relation, as shown in the following Table, AEM achieves high accuracy (99.32% on Spark and 98.7% on Hadoop), as the LLM can reliably determine whether one log sequence is a modified version of another. Moreover, even if a reused LLM result is incorrect, reprocessing the same log would not yield a better outcome. The core idea of AEM is to improve efficiency without compromising performance. As shown in the Table, AEM further reduces the proportion of logs processed by the LLM (e.g., from 4.82% to 3.44% on Hadoop) while maintaining the SM's detection capability.
+<img width="1122" height="716" alt="image" src="https://github.com/user-attachments/assets/11bc070c-abd3-4bce-9a12-ad898b42ee05" />
 
-<img width="1088" height="832" alt="image" src="https://github.com/user-attachments/assets/d8498e54-9695-488a-b10f-89837589d81b" />
+<img width="1142" height="884" alt="image" src="https://github.com/user-attachments/assets/1108b6c5-31e0-4231-8d98-2076a3a4e30a" />
 
 **Proportion** indicates the percentage of samples handled by each component in the dataset. The **+AEM** is used to study how the adaptive evolution mechanism affects the coordinator's routing decisions and SM performance.
 
@@ -80,26 +81,29 @@ It can be seen that all LLMs can achieve good results.
 τ controls how many samples go to the LLM. Too small → high cost; too large → poor routing and degraded performance. We select a τ with low F1 and acceptable volume to balance both.
 The following figure small model’s F1-score on evolved logs under different τ values. Low F1 indicates expected drift. When τ < 40, evolved vs. non-evolved logs are hard to distinguish, causing unstable F1 scores.
 
+<img width="1622" height="1448" alt="image" src="https://github.com/user-attachments/assets/9e7f8188-f179-4b1e-893f-c5e221ab47e1" />
 
-![img.png](img/para.png)
 Under the Spark dataset, the changes in the percentile of the corresponding loss value with respect to the proportion of selected samples are as follows. It can be observed that at Q90, both the F1-Score and the downward trend of the proportion have an inflection point. Therefore, we choose $\tau$ as the turning point on the Spark dataset.
 
 ![img.png](./img/img_2.png)
 ### k 
 We select the best k based on the small model’s F1-score on the validation set. Different k values cause only minor changes in the F1-score. The sensitivity analysis is shown in [1].
 
-![img_3.png](img/img_3.png)
+<img width="1532" height="736" alt="image" src="https://github.com/user-attachments/assets/cb5e4def-3347-4cbd-a1b4-5b6cac75e2a7" />
+
 
 
 
 ## Case Study
-By guiding large models to think step by step, it not only helps reduce hallucinations but also allows the demonstration of the large model's reasoning process, providing more interpretability for log anomaly detection.
+Evol-CoT integrates a customized workflow with CoT prompts, enabling the LLM to provide explicit reasoning traces. To illustrate this, we present two representative cases corresponding to its two core components:
 
 ### A simple and intuitive CASE
-**Evolved Logs with Evolutionary Relationships:** As shown in the following Figure（a), the current log differs from the most similar historical log only by an additional entry used as supplementary information. The LLM first identifies this difference, then reasons that the added entry does not change the system behavior represented by the los, and finally correctly determines that the two logs are evolutionarily related.
+**Case of Evol Detect (3.1):** As shown in Fig.7 (a), the current log differs from its most similar historical log only by an additional entry serving as supplementary information. The LLM explicitly identifies this difference, reasons that the added entry does not alter the underlying system semantics or state, and concludes that the two logs are evolutionarily related. Consequently, the anomaly label of the historical log can be reused, with the reasoning trace providing a clear justification for this decision.
 
-**Evolved Logs without Evolutionary Relationships:** As also shown in the following Figure (b), when the current log differs significantly in semantics from similar historical logs, no evolutionary relationship is identified. The log is then handled by the AD Agent. It first uses tools to determine that the log is a deterministic case (i.e., similar logs are all labeled as anomalies), and then applies RAG to retrieve relevant examples to help the LLM understand system behavior. The LLM analyzes the differences, finds them too large for reuse, and instead performs semantic anomaly detection—successfully identifying the anomaly and its type.
-<img width="1116" height="1090" alt="image" src="https://github.com/user-attachments/assets/e2753973-a3d8-47c6-9941-dad5b36bb948" />
+**Case of AD Agent (3.2)** Fig.7 (b) illustrates the complementary scenario. When the current log exhibits substantial semantic differences from similar historical logs, no evolutionary relation is detected, and the sample is routed to the AD Agent. The agent first employs tools to check determinism (i.e., whether similar logs are consistently labeled as anomalies), and then applies RAG to retrieve informative examples. Guided by CoT, the LLM contrasts the current log with retrieved anomalies (e.g., network or I/O errors), highlights semantic differences (e.g., heartbeat failure vs. connection errors), and shifts to semantic reasoning to interpret the failure mode. This process leads to correct anomaly detection while simultaneously providing an interpretable rationale.
+
+<img width="1230" height="1308" alt="image" src="https://github.com/user-attachments/assets/25d23d24-a2be-4940-a8f3-5815453f597b" />
+
 
 ### Specific practical examples
 #### Evol Detect

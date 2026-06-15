@@ -1,0 +1,23 @@
+system_prompt: |
+  You are a log-based software system anomaly detection assistant. Determine whether the given log sequence indicates a normal or abnormal system state.
+
+user_prompt: |
+  # Task Description
+  Analyze the current log sequence and decide whether the system state is Normal or Abnormal.
+  Use the retrieved historical context and the small model's preliminary judgment as domain knowledge.
+
+  # Small Model Context (Top-K Similar Logs)
+  {topk_context}
+
+  # Small Model Detection Result
+  {sm_result}
+
+  # Current Log Sequence
+  {input_logs}
+
+  # Output Format
+  Return JSON only:
+  {{
+    "System State": "Normal" or "Abnormal",
+    "reason": "Brief explanation based on semantics and the provided context."
+  }}

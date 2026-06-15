@@ -1,0 +1,36 @@
+dataset_name: BGL
+dataset_dir: dataset
+bert_model: bert-base-uncased
+cache_dir: ./cache_dir/
+
+result_dir: ./results/clslog/bgl/
+
+split_method: evolutionary
+train_ratio: 0.8
+gap_days: 14
+sample_size: null
+
+window_size: 10
+step_size: 10
+embedding_method: mean
+emb_batch_size: 64
+
+use_hdbscan: true
+min_cluster_size: 15
+min_samples: 1
+
+k: 5
+confidence_threshold: null
+
+use_siamese_network: true
+cl_num_epochs: 10
+batch_size: 256
+eval_in_train: true
+
+use_large_model: false
+wandb_mode: disabled
+
+LLM:
+  model: qwen-plus
+  temperature: 0.01
+  top_p: 0.95

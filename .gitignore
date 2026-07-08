@@ -26,3 +26,4 @@ venv/
 
 # Large local files (keep papers out of git)
 *.pdf
+logs_bgl_download.txt

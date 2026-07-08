@@ -19,11 +19,12 @@ emb_batch_size: 64
 use_hdbscan: false
 
 sm_only_mode: true
-enable_confidence_routing: false
+enable_confidence_routing: true
 tune_k_on_valid: true
 k: 4
 score_threshold: 0.0
 confidence_threshold: null
+llm_prompt: clslog_evol_detect
 
 use_siamese_network: true
 cl_num_epochs: 20

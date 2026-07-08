@@ -23,19 +23,25 @@ python3 demo/loghub_data_process_demo.py --dataset Zookeeper
 python3 demo/loghub_data_process_demo.py --dataset BGL
 ```
 
-Zookeeper experiments:
+Run on Zookeeper:
 
 ```bash
 python3 CLSLog.py --config ./config/clslog_zookeeper.yaml
-python3 CLSLog.py --config ./config/clslog_zookeeper_routing.yaml
 ```
 
-Enable LLM for low-confidence samples:
+Enable LLM for low-confidence samples — set in `config/clslog_zookeeper.yaml`:
+
+```yaml
+sm_only_mode: false
+use_large_model: true
+```
+
+Then configure API credentials:
 
 ```bash
 cp config/llm_local.yaml.example config/llm_local.yaml
-# set api_key and base_url in llm_local.yaml
-python3 CLSLog.py --config ./config/clslog_zookeeper_llm.yaml
+# set api_key and base_url
+python3 CLSLog.py --config ./config/clslog_zookeeper.yaml
 ```
 
 Or use environment variables:

@@ -19,7 +19,7 @@ from utils import util
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', default='./config/clslog_zookeeper_llm.yaml')
+    parser.add_argument('--config', default='./config/clslog_zookeeper.yaml')
     parser.add_argument('--cases', default='./results/clslog/zookeeper_clslog/low_confidence_cases.json')
     parser.add_argument('--output', default='./results/clslog/zookeeper_clslog/llm_rerun_records.json')
     args = parser.parse_args()

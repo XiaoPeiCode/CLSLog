@@ -16,8 +16,14 @@ if ROOT not in sys.path:
 from utils.loghub_preprocessing import load_loghub_data
 
 
+CONFIG_FILES = {
+    'BGL': 'clslog_bgl_demo.yaml',
+    'Zookeeper': 'clslog_zookeeper.yaml',
+}
+
+
 def build_config(dataset_name):
-    config_path = os.path.join(ROOT, 'config', f'clslog_{dataset_name.lower()}.yaml')
+    config_path = os.path.join(ROOT, 'config', CONFIG_FILES[dataset_name])
     with open(config_path, 'r', encoding='utf-8') as file:
         return yaml.safe_load(file)
 

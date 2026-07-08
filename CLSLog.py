@@ -691,6 +691,6 @@ def main(config):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run CLSLog on LogHub datasets.')
-    parser.add_argument('--config', type=str, default='./config/clslog_bgl.yaml')
+    parser.add_argument('--config', type=str, default='./config/clslog_bgl_demo.yaml')
     args = parser.parse_args()
     main(load_config(args.config))

@@ -7,32 +7,28 @@ system_prompt: |
   patterns differ from historical neighbors. Combine neighbor labels with direct log analysis.
 
   ## Abnormal — genuine system failure
-  Mark Abnormal only when the sequence shows clear evidence of internal malfunction:
-  - Log lines report an UNEXPECTED internal exception that FORCES shutdown, abort, or
-    service halt while connections, sockets, or work are still active
-  - Critical service failure with no routine recovery explanation
-  - Failure patterns consistent with Abnormal-labeled neighbors and indicating broken system state
-  Important: "unexpected exception ... causing shutdown" while resources are still open is
-  a fault signal, NOT routine socket cleanup or client disconnect.
+  Mark Abnormal ONLY when the sequence contains clear evidence of an unexpected internal fault:
+  - An UNEXPECTED exception that CAUSES shutdown / abort while sockets or work remain active
+    (classic form: unexpected exception causing shutdown while sock still open)
+  - Critical service crash with no routine recovery explanation
+  Do NOT treat the following as Abnormal by themselves:
+  - "Exception when following the leader" + "shutdown called" (leader failover / reconfiguration)
+  - Session expire / timeout / Processed session termination / Closed socket connection
+  - Connection broken / Interrupting SendWorker during election or peer reconnect
+  - Cannot open channel during election / LOOKING / FOLLOWING / Snapshotting
+  - Client disconnect / end-of-stream / GOODBYE without unexpected-exception shutdown
 
   ## Normal — expected operational behavior
   Mark Normal when events are explainable as routine lifecycle or recoverable operations,
-  EVEN IF individual lines contain words like error, exception, broken, shutdown, or timeout:
-  - Client/session timeout, expiration, or graceful session termination
-  - Planned shutdown, leader election, quorum change, or failover reconfiguration
-  - Transient connection loss or peer unreachable during startup, election, or reconnect
-  - Client disconnect, end-of-stream, or expected exception during normal socket close
-  - Informational warnings during recovery that do not indicate an internal crash
+  EVEN IF individual lines contain words like error, exception, broken, shutdown, or timeout.
 
   ## Decision procedure
-  1. Read the full sequence and infer overall system health.
-  2. Compare with Top-K neighbors: do current logs resemble routine ops (Normal neighbors)
-     or failure patterns (Abnormal neighbors)?
-  3. Prefer Normal when the sequence describes expected lifecycle/failover behavior only.
-  4. Mark Abnormal when ANY line reports an unexpected internal exception forcing shutdown
-     while the system still has open sockets/connections — this overrides nearby routine lines.
-  5. Do not flag Abnormal solely because of scary keywords in isolation; judge holistically,
-     but never downgrade explicit unexpected-exception-driven shutdown to Normal.
+  1. Search for unexpected-exception-driven shutdown while resources are still open.
+     If present -> Abnormal.
+  2. Otherwise, if the sequence only shows election, failover ("Exception when following the leader"),
+     session lifecycle, or reconnect cleanup -> Normal.
+  3. Prefer Normal when Top-K neighbors are mostly Normal and no unexpected-exception shutdown appears.
+  4. Never mark Abnormal solely because of the words exception / shutdown / broken.
 
 user_prompt: |
   # Dataset
@@ -55,5 +51,5 @@ user_prompt: |
   Return JSON only:
   {{
     "System State": "Normal" or "Abnormal",
-    "reason": "One concise sentence: routine operational event vs unexpected internal failure."
+    "reason": "One concise sentence: unexpected-exception shutdown vs routine failover/lifecycle."
   }}

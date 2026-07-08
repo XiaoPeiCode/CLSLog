@@ -1,15 +1,16 @@
 dataset_name: BGL
 dataset_dir: dataset
-structured_log_path: ../LogCAE/dataset/example/BGL/BGL_2k.log_structured.csv
+structured_log_path: ./dataset/example/BGL/BGL_2k.log_structured.csv
 bert_model: bert-base-uncased
 cache_dir: ./cache_dir/
 
-result_dir: ./results/clslog/bgl_demo_stratified/
+result_dir: ./results/clslog/bgl_demo/
 
 split_method: stratified
 test_ratio: 0.2
 valid_ratio: 0.1
 sample_size: null
+random_seed: 42
 
 window_size: 10
 step_size: 10
@@ -18,20 +19,25 @@ emb_batch_size: 32
 
 use_hdbscan: false
 sm_only_mode: true
+enable_confidence_routing: false
 
 k: 5
+tune_k_on_valid: true
 eval_split: valid
 
 use_siamese_network: true
 cl_num_epochs: 20
 batch_size: 128
+learning_rate: 0.001
 eval_in_train: true
 
 use_large_model: false
-use_cache: false
+use_cache: true
 wandb_mode: disabled
 
 LLM:
-  model: qwen-plus
+  model: gpt-4o-mini
   temperature: 0.01
   top_p: 0.95
+  batch_size: 8
+  response_format: true

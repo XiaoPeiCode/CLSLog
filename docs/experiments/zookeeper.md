@@ -13,7 +13,7 @@
 ## 推荐运行顺序
 
 ```bash
-# 1. 数据预处理（首次）
+# 1. 数据预处理（首次，自动下载 + Drain 解析）
 python3 demo/loghub_data_process_demo.py --dataset Zookeeper
 
 # 2. SM-only 基线

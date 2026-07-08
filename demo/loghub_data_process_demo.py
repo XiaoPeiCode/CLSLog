@@ -1,6 +1,9 @@
 """
 Preprocess LogHub datasets (BGL / Zookeeper) for CLSLog experiments.
 
+Downloads archives from Zenodo, parses logs with the vendored Drain parser,
+then builds BERT embeddings and sliding-window sequences.
+
 Usage:
     python demo/loghub_data_process_demo.py --dataset BGL
     python demo/loghub_data_process_demo.py --dataset Zookeeper

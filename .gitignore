@@ -2,8 +2,10 @@
 config/llm_local.yaml
 .env
 
-# Data & artifacts
-dataset/
+# Data & artifacts (keep bundled demo data under dataset/example/)
+/dataset/*
+!/dataset/example/
+!/dataset/example/**
 cache_dir/
 /results/
 logs/

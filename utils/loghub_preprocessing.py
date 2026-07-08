@@ -1,14 +1,11 @@
 """
 LogHub data preprocessing for CLSLog.
 
-Reference: LogCAE/utils/preprocessing.py and utils/SlidingWindow.py
-CLSLog uses raw log Content (no log parsing dependency) with BERT embeddings.
+Uses vendored Drain parser (utils/drain.py) and BERT embeddings on raw log Content.
 """
 
 import os
 import pickle
-import subprocess
-import sys
 from datetime import timedelta
 
 import numpy as np
@@ -19,7 +16,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 from transformers import BertModel, BertTokenizer
 
-LOGCAE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../LogCAE'))
+from utils.log_parsing import parse_loghub_dataset
 
 
 def get_device():
@@ -28,53 +25,6 @@ def get_device():
     if hasattr(torch.backends, 'mps') and torch.backends.mps.is_available():
         return torch.device('mps')
     return torch.device('cpu')
-
-LOGHUB_URLS = {
-    'BGL': 'https://zenodo.org/record/3227177/files/BGL.tar.gz?download=1',
-    'Zookeeper': 'https://zenodo.org/record/3227177/files/Zookeeper.tar.gz?download=1',
-}
-
-
-def _download_dataset_archive(dataset_name, dataset_dir='dataset'):
-    clslog_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    target_dir = os.path.join(clslog_root, dataset_dir, dataset_name)
-    os.makedirs(target_dir, exist_ok=True)
-    archive_path = os.path.join(target_dir, f'{dataset_name}.tar.gz')
-    log_path = os.path.join(target_dir, f'{dataset_name}.log')
-    if os.path.exists(log_path):
-        return archive_path
-
-    if not os.path.exists(archive_path):
-        url = LOGHUB_URLS[dataset_name]
-        print(f'Downloading {dataset_name} from LogHub...')
-        result = subprocess.run(
-            ['curl', '-L', '--fail', '--progress-bar', '-o', archive_path, url],
-            cwd=clslog_root,
-            check=False,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f'Failed to download {dataset_name} dataset archive.')
-
-    print(f'Extracting {archive_path}...')
-    subprocess.run(['tar', '-xzf', archive_path, '-C', target_dir], check=True)
-    return archive_path
-
-
-def _run_logcae_parsing(dataset_name, dataset_dir='dataset'):
-    clslog_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    os.makedirs(os.path.join(clslog_root, dataset_dir), exist_ok=True)
-    _download_dataset_archive(dataset_name, dataset_dir)
-    cmd = (
-        "import sys; "
-        f"sys.path.insert(0, {LOGCAE_ROOT!r}); "
-        "from utils.preprocessing import parsing; "
-        f"parsing({dataset_name!r}, {dataset_dir!r})"
-    )
-    subprocess.run(
-        [sys.executable, '-c', cmd],
-        cwd=clslog_root,
-        check=True,
-    )
 
 
 class LogDataset(Dataset):
@@ -103,7 +53,7 @@ def ensure_structured_log(dataset_name, dataset_dir='dataset', structured_log_pa
         return structured_log_path
     structured_path = os.path.join(abs_dataset_dir, dataset_name, f'{dataset_name}.log_structured.csv')
     if not os.path.exists(structured_path):
-        _run_logcae_parsing(dataset_name, dataset_dir)
+        parse_loghub_dataset(dataset_name, dataset_dir)
     return structured_path
 
 

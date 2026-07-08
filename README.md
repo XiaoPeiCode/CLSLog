@@ -2,12 +2,9 @@
 
 基于大小模型协同的日志异常检测复现代码库，对应论文 **CLSLog: Collaborating Large and Small Models for Log-based Anomaly Detection**（FSE Companion 2025）。
 
-本仓库当前重点展示 **LogHub Zookeeper** 上的完整复现链路：小模型基线 → 置信度路由（演化日志选择）→ 大模型语义补判。
+本仓库为**完全独立**的开源实现，不依赖 LogCAE、CoorLog 或其他外部项目。数据下载、Drain 日志解析、BERT 嵌入、Siamese 小模型、置信度路由与大模型推理均可在本仓库内完成。
 
-| 方法 | 入口 | 数据集 | 说明 |
-|------|------|--------|------|
-| **CLSLog** | `CLSLog.py` | LogHub（BGL、Zookeeper） | 置信度级联：SM 高置信直接判定，低置信送 LLM |
-| **CoorLog**（扩展） | `CollaborLog.py` | LOGEVOL（Spark、Hadoop） | AutoEncoder 协调器 + Evol-CoT + AEM |
+当前重点展示 **LogHub Zookeeper** 上的完整复现链路：小模型基线 → 置信度路由（演化日志选择）→ 大模型语义补判。
 
 ---
 
@@ -22,6 +19,7 @@ CLSLog/
 │   ├── clslog_zookeeper_llm.yaml      # 完整 CLSLog（SM + LLM）
 │   ├── clslog_bgl*.yaml               # BGL 相关配置
 │   └── llm_local.yaml.example         # LLM API 配置模板
+├── dataset/example/BGL/               # 内置 BGL 2k 快速验证数据
 ├── demo/
 │   ├── loghub_data_process_demo.py    # LogHub 数据下载与预处理
 │   ├── tune_zookeeper.py              # Zookeeper 超参搜索
@@ -36,13 +34,13 @@ CLSLog/
 │   ├── clslog_detect.yaml             # 通用知识增强 Prompt
 │   └── clslog_evol_detect.yaml        # 演化日志通用 Prompt（推荐）
 ├── utils/
-│   ├── loghub_preprocessing.py        # 数据预处理、BERT 嵌入、划分
+│   ├── drain.py                       # Drain 日志解析（MIT, LogPAI）
+│   ├── log_parsing.py                 # LogHub 下载与解析
+│   ├── loghub_preprocessing.py        # BERT 嵌入、滑动窗口、划分
 │   ├── cluster_utils.py               # HDBSCAN 降采样
 │   └── util.py                        # 配置 / Prompt 工具
 └── requirements.txt
 ```
-
-**外部依赖：** LogHub 原始数据的 Drain 解析复用了同级目录 [LogCAE](../LogCAE) 中的 `utils/preprocessing.py`，请确保 `LogCAE` 与 `CLSLog` 位于同一父目录下。
 
 ---
 
@@ -56,42 +54,38 @@ pip install -r requirements.txt
 
 ---
 
-## 快速开始（Zookeeper）
+## 快速开始
 
-### 1. 数据预处理
+### 1. 零下载 smoke test（内置 BGL 2k 样例，约 1 分钟）
+
+```bash
+python3 CLSLog.py --config ./config/clslog_bgl_demo.yaml
+```
+
+### 2. LogHub 全量数据预处理
+
+自动从 Zenodo 下载并用内置 Drain 解析器生成 structured CSV：
 
 ```bash
 python3 demo/loghub_data_process_demo.py --dataset Zookeeper
+python3 demo/loghub_data_process_demo.py --dataset BGL
 ```
 
-### 2. SM-only 基线
+### 3. Zookeeper 完整复现
 
 ```bash
+# SM-only 基线
 python3 CLSLog.py --config ./config/clslog_zookeeper.yaml
-```
 
-### 3. 置信度路由（演化日志选择）
-
-将测试集按置信度 C(si) 分为高/低置信子集，分别统计 SM 表现：
-
-```bash
+# 置信度路由（演化日志选择）
 python3 CLSLog.py --config ./config/clslog_zookeeper_routing.yaml
-```
 
-### 4. 完整 CLSLog（SM + LLM）
-
-```bash
+# 完整 CLSLog（需配置 LLM）
 cp config/llm_local.yaml.example config/llm_local.yaml
-# 编辑 llm_local.yaml，填入 api_key 与 base_url
 python3 CLSLog.py --config ./config/clslog_zookeeper_llm.yaml
 ```
 
-也可通过环境变量注入：
-
-```bash
-export CLSLOG_LLM_API_KEY="your-key"
-export CLSLOG_LLM_BASE_URL="https://api.openai.com/v1"
-```
+LLM 密钥通过 `config/llm_local.yaml`（gitignore）或环境变量 `CLSLOG_LLM_API_KEY` 注入。
 
 ---
 
@@ -114,7 +108,7 @@ export CLSLOG_LLM_BASE_URL="https://api.openai.com/v1"
 ## 核心流程
 
 ```
-原始日志 → BERT 嵌入 + 滑动窗口 → log sequence
+原始日志 → Drain 解析 → BERT 嵌入 + 滑动窗口 → log sequence
     → Siamese 对比学习微调
     → 对 test 序列检索 top-k 邻居
     → 置信度 C(si) = mean(top-k similarities)
@@ -122,62 +116,29 @@ export CLSLOG_LLM_BASE_URL="https://api.openai.com/v1"
         └── C(si) ≤ μ  →  LLM 语义推理（注入 top-k 上下文 + SM 结果）
 ```
 
-| 步骤 | 文件 | 函数 |
-|------|------|------|
-| 数据预处理 | `utils/loghub_preprocessing.py` | `load_loghub_data()` |
-| Siamese 训练 | `CLSLog.py` | `train_siamese_network()` |
-| SM 推理 | `CLSLog.py` | `sm_predict()` |
-| 置信度路由 | `CLSLog.py` | `analyze_confidence_routing()` |
-| LLM 推理 | `CLSLog.py` + `prompt/clslog_evol_detect.yaml` | `llm_predict_low_confidence_samples()` |
-
 ---
 
 ## 配置说明
 
 | 参数 | 含义 | 典型值 |
 |------|------|--------|
-| `split_method` | 划分方式 | `stratified`（分层 8:2）或 `evolutionary`（时间演化） |
-| `sm_only_mode` | 仅跑 SM，不调用 LLM | `true` / `false` |
-| `enable_confidence_routing` | 启用置信度路由分析 | `true` |
-| `use_hdbscan` | HDBSCAN 训练集降采样 | Zookeeper 复现建议 `false` |
-| `tune_k_on_valid` | 在 valid 上搜索 k 与阈值 | `true` |
-| `use_large_model` | 低置信度样本送 LLM | `false`（默认） |
-| `llm_prompt` | Prompt 模板名 | `clslog_evol_detect` |
-| `confidence_threshold` | 路由阈值 μ，`null` 为 valid 自动选取 | `null` |
-
-LLM 相关密钥通过 `config/llm_local.yaml`（gitignore）或环境变量 `CLSLOG_LLM_API_KEY` 注入，**请勿提交到仓库**。
+| `split_method` | 划分方式 | `stratified` 或 `evolutionary` |
+| `sm_only_mode` | 仅跑 SM | `true` / `false` |
+| `enable_confidence_routing` | 置信度路由分析 | `true` |
+| `use_hdbscan` | HDBSCAN 降采样 | Zookeeper 建议 `false` |
+| `use_large_model` | 低置信度送 LLM | `false`（默认） |
+| `llm_prompt` | Prompt 模板 | `clslog_evol_detect` |
+| `structured_log_path` | 跳过下载，直接用已有 CSV | demo 配置已内置 |
 
 ---
 
-## 实验输出
+## 第三方组件
 
-每次运行在 `result_dir` 下生成：
-
-```
-results/clslog/<experiment>/
-├── clslog_summary.json
-├── routing_analysis.json              # 路由实验
-├── sm_high_confidence_evaluation.txt
-├── sm_low_confidence_evaluation.txt
-├── low_confidence_cases.json
-└── llm_low_confidence_records.json    # LLM 实验
-```
-
----
-
-## BGL 与其他数据集
-
-```bash
-# BGL 快速验证（2k 样例）
-python3 CLSLog.py --config ./config/clslog_bgl_demo.yaml
-
-# BGL 子集（5 万条）
-python3 CLSLog.py --config ./config/clslog_bgl_sample.yaml
-```
+- **Drain 日志解析器**：`utils/drain.py`，源自 [LogPAI/logparser](https://github.com/logpai/logparser)（MIT License）
+- **LogHub 数据集**：https://github.com/logpai/loghub
 
 ---
 
 ## 参考
 
-- LogHub 数据集：https://github.com/logpai/loghub
-- LOGEVOL 数据集：https://github.com/YintongHuo/EvLog
+- LOGEVOL / CoorLog 等扩展工作不在本仓库维护范围内

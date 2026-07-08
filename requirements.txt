@@ -1,0 +1,10 @@
+torch>=2.0
+transformers>=4.30
+scikit-learn>=1.2
+pandas>=1.5
+numpy>=1.23
+tqdm>=4.65
+pyyaml>=6.0
+hdbscan>=0.8
+openai>=1.0
+httpx>=0.24

@@ -3,7 +3,7 @@ dataset_dir: dataset
 bert_model: bert-base-uncased
 cache_dir: ./cache_dir/
 
-result_dir: ./results/clslog/zookeeper/
+result_dir: ./results/clslog/zookeeper_clslog/
 
 split_method: stratified
 test_ratio: 0.2
@@ -18,12 +18,13 @@ emb_batch_size: 64
 
 use_hdbscan: false
 
-sm_only_mode: true
-enable_confidence_routing: false
+sm_only_mode: false
+enable_confidence_routing: true
 tune_k_on_valid: true
 k: 4
 score_threshold: 0.0
 confidence_threshold: null
+llm_prompt: clslog_evol_detect
 
 use_siamese_network: true
 cl_num_epochs: 20
@@ -32,7 +33,7 @@ learning_rate: 0.001
 eval_split: valid
 eval_in_train: true
 
-use_large_model: false
+use_large_model: true
 use_cache: true
 wandb_mode: disabled
 

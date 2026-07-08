@@ -1,232 +1,183 @@
+# CLSLog
 
+基于大小模型协同的日志异常检测复现代码库，对应论文 **CLSLog: Collaborating Large and Small Models for Log-based Anomaly Detection**（FSE Companion 2025）。
 
-# CollaborLog: Efficient-Generalizable Log Anomaly Detection via Large-Small Model Collaboration in Software Evolution
+本仓库当前重点展示 **LogHub Zookeeper** 上的完整复现链路：小模型基线 → 置信度路由（演化日志选择）→ 大模型语义补判。
 
-- [CollaborLog](#collaborlog)
-- [Project Structure](#project-structure)
-- [Datasets](#dataset)
-- [Extend Result](#extend-result)
-  - [Ablation Study](#ablation-tudy)
-  - [Results of LogHub](#results-of-loghub)
-  - [Extend Results on different LLMs](#extend-results-on-different-LLMs)
-  - [Parameter Sensitivity Analysis](#parameter-sensitivity-analysis)
-    - [$\tau$](#τ)
-    - [k](#k)
-  - [Study of Evol-CoT](#study-of-evol-cot)
-  - [Case Study](#case-study)
-- [Implement Detail](#implement-detail)
-  - [Coordinator](#coordinator)
-  - [Small Model](#small-model)
-  - [LLM](#llm)
-- [Environment](#️-environment)
-- [Run](#run)
+| 方法 | 入口 | 数据集 | 说明 |
+|------|------|--------|------|
+| **CLSLog** | `CLSLog.py` | LogHub（BGL、Zookeeper） | 置信度级联：SM 高置信直接判定，低置信送 LLM |
+| **CoorLog**（扩展） | `CollaborLog.py` | LOGEVOL（Spark、Hadoop） | AutoEncoder 协调器 + Evol-CoT + AEM |
 
-# Major Revision Response Letter
-Please Ref ./response_letter.pdf
+---
 
-# CollaborLog
-Frequent software updates lead to log evolution, posing generalization challenges for current log anomaly detection. Traditional log anomaly detection research focuses on using small deep learning models (SMs), but these models inherently lack generalization due to their closed-world assumption. Large Language Models (LLMs) exhibit strong semantic understanding and generalization capabilities, making them promising for log anomaly detection. However, they suffer from computational inefficiencies.
-To balance efficiency and generalization, we propose a collaborative log anomaly detection scheme using an adaptive coordinator to integrate SM and LLM. The coordinator determines if incoming logs have evolved. Non-evolutionary los are routed to the SM, while evolutionary logs are directed to the LLM for detailed inference using the constructed Evol-CoT. To gradually adapt to evolution, we introduce the adaptive evolve mechanism (AEM), which updates the coordinator to redirect evolutionary logs identified by the LLM to the SM. Simultaneously, the SM is fine-tuned to inherit the LLM's judgment on these logs.
-![alt text](img/image.png)
+## 项目结构
 
-# project-structure
 ```
-├─config/           # Configuration files storing various parameters
-├─prompt/           # Prompts for large language models
-├─modules/            
-│  ├─AutoEncoder.py   # Coordinator
-│  └─llm_chats.py    # Encapsulated LLM interaction interface  
-├─CollaborLog.py         # entries
-```
-
-# Dataset
-
-We conduct extensive experiments on LOGEVOL(\url{https://github.com/YintongHuo/EvLog}), a publicly available dataset that records software evolution activities. LOGEVOL is generated using the HiBench benchmarking suite~\cite{hibench}, which runs a diverse set of workflows ranging from basic to complex scenarios in Spark and Hadoop. A total of 22 workloads are executed across the system, covering a wider range of real-world scenarios compared to other public datasets. 
-
-<img width="1428" height="286" alt="image" src="https://github.com/user-attachments/assets/a0263cd2-a2db-4205-8af2-ffacb4d86874" />
-
-  <center>**Table 1: Statistics of LOGEVOL.**</center>
-
-We also practiced our approach on two open datasets, BGL and Zookeeper from LogHub(https://github.com/logpai/loghub).
-
-# Extend Result
-## Ablation Study
-
-**Effect of Evol-CoT.** Evol-CoT customizes a log anomaly detection strategy for software evolution scenarios through task decomposition and RAG-based knowledge injection. As shown in the following Table, without Evol-CoT (**Vanilla**), the LLM struggles with evolved logs due to a lack of domain knowledge, achieving only 0.3298 F1 on the Spark dataset. In contrast, our method significantly improves performance by guiding the LLM with structured knowledge and subtasks. Within Evol-CoT, Evol Detect first identifies evolutionary relations for all evolved logs, and then the portion (7.91% on Spark and 4.05% on Hadoop) is further routed to the AD Agent for detection. This is because most log sequences remain semantically consistent across software versions, with only a small portion being entirely new.
-
-**Effect of AEM.** AEM leverages the evolution relations identified by Evol Detect to update the Coordinator and SM, avoiding redundant LLM usage for similar samples. By propagating labels within each evolution relation, as shown in the following Table, AEM achieves high accuracy (99.32% on Spark and 98.7% on Hadoop), as the LLM can reliably determine whether one log sequence is a modified version of another. Moreover, even if a reused LLM result is incorrect, reprocessing the same log would not yield a better outcome. The core idea of AEM is to improve efficiency without compromising performance. As shown in the Table, AEM further reduces the proportion of logs processed by the LLM (e.g., from 4.82% to 3.44% on Hadoop) while maintaining the SM's detection capability.
-<img width="1122" height="716" alt="image" src="https://github.com/user-attachments/assets/11bc070c-abd3-4bce-9a12-ad898b42ee05" />
-
-<img width="1142" height="884" alt="image" src="https://github.com/user-attachments/assets/1108b6c5-31e0-4231-8d98-2076a3a4e30a" />
-
-**Proportion** indicates the percentage of samples handled by each component in the dataset. The **+AEM** is used to study how the adaptive evolution mechanism affects the coordinator's routing decisions and SM performance.
-
-## Results of Loghub
-We also practiced our approach on two open datasets, BGL and Zookeeper, from LogHub. Similar to recent work on evolutionary logs, we set the earlier logs as the training set and the logs from 14 days later as the test set to ensure that the log patterns change over time. We also follow the standard 8:1:1 split, randomly dividing the logs for each software version into
-training, validation, and test sets.
-<img width="1552" height="802" alt="image" src="https://github.com/user-attachments/assets/8d8e973b-7940-48a3-8c87-2b2d32b70eed" />
- On LogHub, our method achieved higher F1-scores than the small model or LLM alone.
-
-## Extend Results on different LLMs
-This section presents the extended results of different large language models (LLMs) in the inter-version scenarios of Spark 2 to Spark 3 and Hadoop 2 to Hadoop 3. The Table compares the performance of Qwen-plus, deepseek, and GPT3.5 based on precision (Pr), recall (Re), and F1-score.
-It can be seen that all LLMs can achieve good results.
-
-<img width="1432" height="606" alt="image" src="https://github.com/user-attachments/assets/9a4e0e78-4e3b-4965-967a-87e907333aaa" />
-
-  <center>Table 6:Comparison of different LLMs(Inter-version)</center>
-
-## Parameter Sensitivity Analysis
-
-### τ
-τ controls how many samples go to the LLM. Too small → high cost; too large → poor routing and degraded performance. We select a τ with low F1 and acceptable volume to balance both.
-The following figure small model’s F1-score on evolved logs under different τ values. Low F1 indicates expected drift. When τ < 40, evolved vs. non-evolved logs are hard to distinguish, causing unstable F1 scores.
-
-<img width="1622" height="1448" alt="image" src="https://github.com/user-attachments/assets/9e7f8188-f179-4b1e-893f-c5e221ab47e1" />
-
-Under the Spark dataset, the changes in the percentile of the corresponding loss value with respect to the proportion of selected samples are as follows. It can be observed that at Q90, both the F1-Score and the downward trend of the proportion have an inflection point. Therefore, we choose $\tau$ as the turning point on the Spark dataset.
-
-### k 
-We select the best k based on the small model’s F1-score on the validation set. Different k values cause only minor changes in the F1-score. The sensitivity analysis is shown in [1].
-
-<img width="1532" height="736" alt="image" src="https://github.com/user-attachments/assets/cb5e4def-3347-4cbd-a1b4-5b6cac75e2a7" />
-
-
-
-
-## Case Study
-Evol-CoT integrates a customized workflow with CoT prompts, enabling the LLM to provide explicit reasoning traces. To illustrate this, we present two representative cases corresponding to its two core components:
-
-### A simple and intuitive CASE
-**Case of Evol Detect (3.1):** As shown in Fig.7 (a), the current log differs from its most similar historical log only by an additional entry serving as supplementary information. The LLM explicitly identifies this difference, reasons that the added entry does not alter the underlying system semantics or state, and concludes that the two logs are evolutionarily related. Consequently, the anomaly label of the historical log can be reused, with the reasoning trace providing a clear justification for this decision.
-
-**Case of AD Agent (3.2)** Fig.7 (b) illustrates the complementary scenario. When the current log exhibits substantial semantic differences from similar historical logs, no evolutionary relation is detected, and the sample is routed to the AD Agent. The agent first employs tools to check determinism (i.e., whether similar logs are consistently labeled as anomalies), and then applies RAG to retrieve informative examples. Guided by CoT, the LLM contrasts the current log with retrieved anomalies (e.g., network or I/O errors), highlights semantic differences (e.g., heartbeat failure vs. connection errors), and shifts to semantic reasoning to interpret the failure mode. This process leads to correct anomaly detection while simultaneously providing an interpretable rationale.
-
-<img width="1230" height="1308" alt="image" src="https://github.com/user-attachments/assets/25d23d24-a2be-4940-a8f3-5815453f597b" />
-
-
-### Specific practical examples
-#### Evol Detect
-
-Given the current log sequence and similar historical log sequences, large models can determine whether there is an evolutionary relationship between the two through semantic analysis.
-
-For example:
-
-Given logs:
-```text
- - Driver commanded a shutdown;
- - MemoryStore cleared;
- - BlockManager stopped;
- - Shutdown hook called;
- - Deleting directory /usr/local/tmp/nm-local-dir/usercache/root/appcache/application_1630409651274_0110/spark-ab99e583-a469-4d2b-8e0d-e6f725459c1d;
- - Driver requested a total number of 0 executor(s).;
- - Driver terminated or disconnected! Shutting down. sp3:35521;
- - Driver terminated or disconnected! Shutting down. sp3:35521;
- - Final app status: SUCCEEDED, exitCode: 0;
- - Unregistering ApplicationMaster with SUCCEEDED;
- - Waiting for application to be successfully unregistered.;
- - Deleting staging directory hdfs://172.17.0.2:9000/user/root/.sparkStaging/application_1630409651274_0110;
- - Driver commanded a shutdown;
- - MemoryStore cleared;
- - BlockManager stopped;
- - Shutdown hook called;
- - Deleting directory /usr/local/tmp/nm-local-dir/usercache/root/appcache/application_1630409651274_0110/spark-fba93b39-e1c0-48b0-8988-af6dcfa2f569;
+CLSLog/
+├── CLSLog.py                          # 主入口
+├── config/
+│   ├── clslog_zookeeper.yaml          # Zookeeper SM-only 基线
+│   ├── clslog_zookeeper_routing.yaml  # 置信度路由实验
+│   ├── clslog_zookeeper_llm.yaml      # 完整 CLSLog（SM + LLM）
+│   ├── clslog_bgl*.yaml               # BGL 相关配置
+│   └── llm_local.yaml.example         # LLM API 配置模板
+├── demo/
+│   ├── loghub_data_process_demo.py    # LogHub 数据下载与预处理
+│   ├── tune_zookeeper.py              # Zookeeper 超参搜索
+│   └── rerun_llm_low_conf.py          # 仅重跑低置信度 LLM 推理
+├── docs/
+│   ├── experiments/zookeeper.md       # Zookeeper 复现实验说明
+│   └── results/                       # 对外展示的汇总结果
+├── modules/
+│   ├── llm_chat.py                    # OpenAI 兼容 API 封装
+│   └── llm_utils.py                   # LLM 批量调用与解析
+├── prompt/
+│   ├── clslog_detect.yaml             # 通用知识增强 Prompt
+│   └── clslog_evol_detect.yaml        # 演化日志通用 Prompt（推荐）
+├── utils/
+│   ├── loghub_preprocessing.py        # 数据预处理、BERT 嵌入、划分
+│   ├── cluster_utils.py               # HDBSCAN 降采样
+│   └── util.py                        # 配置 / Prompt 工具
+└── requirements.txt
 ```
 
+**外部依赖：** LogHub 原始数据的 Drain 解析复用了同级目录 [LogCAE](../LogCAE) 中的 `utils/preprocessing.py`，请确保 `LogCAE` 与 `CLSLog` 位于同一父目录下。
 
-The  similar log retrieved is
-```text
- - Driver commanded a shutdown;
- - MemoryStore cleared;
- - BlockManager stopped;
- - Shutdown hook called;
- - Deleting directory /usr/local/tmp/nm-local-dir/usercache/root/appcache/application_1629275090372_0014/spark-b39df885-178f-43b9-a780-26d94a1e51ca;
- - Driver requested a total number of 0 executor(s).;
- - Driver terminated or disconnected! Shutting down. master:34041;
- - Driver terminated or disconnected! Shutting down. master:34041;
- - Final app status: SUCCEEDED, exitCode: 0;
- - Unregistering ApplicationMaster with SUCCEEDED;
- - Waiting for application to be successfully unregistered.;
- - Deleting staging directory hdfs://172.17.0.5:9000/user/root/.sparkStaging/application_1629275090372_0014;
- - Shutdown hook called;
- - Saved output of task 'attempt_20210818101826_0006_m_000004_0' to hdfs://172.17.0.5:9000/user/root/HiBench/Wordcount/Output/_temporary/0/task_20210818101826_0006_m_000004;
- - attempt_20210818101826_0006_m_000004_0: Committed;
- - Finished task 4.0 in stage 1.0 (TID 28). 1459 bytes result sent to driver;
- - Saved output of task 'attempt_20210818101826_0006_m_000000_0' to hdfs://172.17.0.5:9000/user/root/HiBench/Wordcount/Output/_temporary/0/task_20210818101826_0006_m_000000;
- - attempt_20210818101826_0006_m_000000_0: Committed;
- - Finished task 0.0 in stage 1.0 (TID 24). 1459 bytes result sent to driver;
- - Driver commanded a shutdown;
- - MemoryStore cleared;
- - BlockManager stopped;
- - Shutdown hook called;
- - Deleting directory /usr/local/tmp/nm-local-dir/usercache/root/appcache/application_1629275090372_0014/spark-33c13cb9-ba68-41cc-b153-5448e12a55f0;
+---
+
+## 环境配置
+
+```bash
+pip install -r requirements.txt
 ```
 
-Let the LLM determine whether there is an evolutionary relationship between the two, and output the reasoning process to enhance reliability.
-```json
-{
-  "IsEvol": "True",
-  "reason": "The log sequence in 'evolution_after' shows a normal system shutdown state, consistent with the semantics of 'evolution_before'. Both sequences represent the standard Spark application termination process, including driver shutdown, resource cleanup, and unregistration with final status SUCCEEDED. The differences are minor and expected due to software evolution: (1) application IDs and Spark directory UUIDs have changed (e.g., application_1629788447699_0105 → application_1630409651274_0110, different UUIDs), which is typical across runs; (2) the master address changed from 'master:45189' to 'sp3:35521', reflecting a different execution environment or cluster configuration, but the log message structure and meaning remain unchanged. There are no significant changes in log order, dependencies, or semantics. The repetition of shutdown-related logs (likely from multiple components or phases) is preserved identically. These are characteristic of log entry evolution (e.g., updated identifiers and hostnames) without altering the underlying system behavior or log meaning. Therefore, an evolutionary relationship exists."
-}
-```
-#### AD Agent
+首次运行会自动从 HuggingFace 下载 `bert-base-uncased` 到 `./cache_dir/`。支持 CUDA / Apple MPS / CPU 自动选择。
 
-For the above example, first, since the categories of the similar logs are highly consistent, this log is determined to be a sample with high certainty. By taking the top-k similar logs as reference examples, the large model is enabled to demonstrate the reasoning process through the methods of Chain-of-Thought (CoT) and few-shot learning, and finally obtain the judgment on the system state.
+---
 
-```text
-{
-    "System State": "Normal",
-    "reason": "The Given_Logs are semantically consistent with the most aligned log sequence in Similar_Logs. Both follow a pattern of a controlled shutdown process: starting with 'Driver commanded a shutdown', followed by resource cleanup (MemoryStore cleared, BlockManager stopped, Shutdown hook called), directory deletion, driver terminating, final app status marked as 'SUCCEEDED' with exitCode 0, unregistering the ApplicationMaster successfully, and repeating shutdown steps for additional directories. Differences in specific directory paths and hostnames (e.g., 'sp3' vs 'master') are expected as they are application-specific and do not indicate anomalies. Since the Similar_Logs_labels are all 0 (assumed to represent normal state), the current system state is Normal."
-}
-```
-# Implement Detail
-## Coordinator
-First, we use a pre-trained BERT to extract the embedding (768-dimensional) of each log entry. Then, we aggregate the embeddings of all log entries in a log sequence by summing and averaging to obtain the embedding of the entire sequence. This embedding is then input into a deep autoencoder, and finally, the reconstruction loss is output.
+## 快速开始（Zookeeper）
 
-Autoencoder parameters:
+### 1. 数据预处理
 
-| Parameter | Value         |
-|-----------|---------------|
-| AE hidden layer dimensions | [64, 128, 64] |
-| batch_size | 256           |
-| Learning rate | 0.001         |
-| Training epochs | 50            |
-
-
-## Small Model
-The Small Model is a BERT-based semantic extraction network. It extracts feature vectors for each sequence, calculates the similarity between each pair of samples using these feature vectors, and then performs anomaly detection using the KNN approach based on this similarity.
-
-Parameters of the BERT-based network:
-
-| Parameter | Value |
-|-----------|-------|
-| Hidden layer dimensions | [128, 64, 32] |
-| batch_size | 256 |
-| Learning rate | 0.001 |
-| Training epochs | 20 |
-
-
-## LLM
-We use qwen-PLUS as the base model, with temperature set to 0.01 and top-p to 0.95.
-
-The three prompts in `./prompt/`:
-
-
-# ⚙️ Environment
-**Key Packages:**
-```
-Numpy
-Pandas
-scikit_learn
-torch==1.13.1+cu116
-tqdm
-wandb
+```bash
+python3 demo/loghub_data_process_demo.py --dataset Zookeeper
 ```
 
-# Run
-You need to follow these steps to **completely** run `CollaborLog`.
-- **Step 1:** Download [Log Data](#datasets) and put it under `data` folder.
-- **Step 2:** Configure QWEN_API_KEY in `./modules/llm_chat.py`
-- **Step 3:** Run `python ./CollaborLog.py --config './config/spark3.yaml'` 
+### 2. SM-only 基线
 
+```bash
+python3 CLSLog.py --config ./config/clslog_zookeeper.yaml
+```
 
+### 3. 置信度路由（演化日志选择）
 
+将测试集按置信度 C(si) 分为高/低置信子集，分别统计 SM 表现：
+
+```bash
+python3 CLSLog.py --config ./config/clslog_zookeeper_routing.yaml
+```
+
+### 4. 完整 CLSLog（SM + LLM）
+
+```bash
+cp config/llm_local.yaml.example config/llm_local.yaml
+# 编辑 llm_local.yaml，填入 api_key 与 base_url
+python3 CLSLog.py --config ./config/clslog_zookeeper_llm.yaml
+```
+
+也可通过环境变量注入：
+
+```bash
+export CLSLOG_LLM_API_KEY="your-key"
+export CLSLOG_LLM_BASE_URL="https://api.openai.com/v1"
+```
+
+---
+
+## Zookeeper 复现结果
+
+详见 [`docs/experiments/zookeeper.md`](docs/experiments/zookeeper.md)。
+
+| 阶段 | F1 | Precision | Recall |
+|------|-----|-----------|--------|
+| SM-only | 94.7% | 100% | 90% |
+| SM 高置信度（94.2% 样本） | 100% | 100% | 100% |
+| SM 低置信度（5.8% 样本） | 0% | 0% | 0% |
+| LLM 低置信度 | **100%** | **100%** | **100%** |
+| **CLSLog 整体** | **100%** | **100%** | **100%** |
+
+论文 Table 1 目标：Zookeeper SM F1 72.2%，CLSLog F1 99.3%。
+
+---
+
+## 核心流程
+
+```
+原始日志 → BERT 嵌入 + 滑动窗口 → log sequence
+    → Siamese 对比学习微调
+    → 对 test 序列检索 top-k 邻居
+    → 置信度 C(si) = mean(top-k similarities)
+        ├── C(si) > μ  →  SM 直接判定
+        └── C(si) ≤ μ  →  LLM 语义推理（注入 top-k 上下文 + SM 结果）
+```
+
+| 步骤 | 文件 | 函数 |
+|------|------|------|
+| 数据预处理 | `utils/loghub_preprocessing.py` | `load_loghub_data()` |
+| Siamese 训练 | `CLSLog.py` | `train_siamese_network()` |
+| SM 推理 | `CLSLog.py` | `sm_predict()` |
+| 置信度路由 | `CLSLog.py` | `analyze_confidence_routing()` |
+| LLM 推理 | `CLSLog.py` + `prompt/clslog_evol_detect.yaml` | `llm_predict_low_confidence_samples()` |
+
+---
+
+## 配置说明
+
+| 参数 | 含义 | 典型值 |
+|------|------|--------|
+| `split_method` | 划分方式 | `stratified`（分层 8:2）或 `evolutionary`（时间演化） |
+| `sm_only_mode` | 仅跑 SM，不调用 LLM | `true` / `false` |
+| `enable_confidence_routing` | 启用置信度路由分析 | `true` |
+| `use_hdbscan` | HDBSCAN 训练集降采样 | Zookeeper 复现建议 `false` |
+| `tune_k_on_valid` | 在 valid 上搜索 k 与阈值 | `true` |
+| `use_large_model` | 低置信度样本送 LLM | `false`（默认） |
+| `llm_prompt` | Prompt 模板名 | `clslog_evol_detect` |
+| `confidence_threshold` | 路由阈值 μ，`null` 为 valid 自动选取 | `null` |
+
+LLM 相关密钥通过 `config/llm_local.yaml`（gitignore）或环境变量 `CLSLOG_LLM_API_KEY` 注入，**请勿提交到仓库**。
+
+---
+
+## 实验输出
+
+每次运行在 `result_dir` 下生成：
+
+```
+results/clslog/<experiment>/
+├── clslog_summary.json
+├── routing_analysis.json              # 路由实验
+├── sm_high_confidence_evaluation.txt
+├── sm_low_confidence_evaluation.txt
+├── low_confidence_cases.json
+└── llm_low_confidence_records.json    # LLM 实验
+```
+
+---
+
+## BGL 与其他数据集
+
+```bash
+# BGL 快速验证（2k 样例）
+python3 CLSLog.py --config ./config/clslog_bgl_demo.yaml
+
+# BGL 子集（5 万条）
+python3 CLSLog.py --config ./config/clslog_bgl_sample.yaml
+```
+
+---
+
+## 参考
+
+- LogHub 数据集：https://github.com/logpai/loghub
+- LOGEVOL 数据集：https://github.com/YintongHuo/EvLog

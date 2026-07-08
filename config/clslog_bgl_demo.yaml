@@ -4,29 +4,28 @@ structured_log_path: ../LogCAE/dataset/example/BGL/BGL_2k.log_structured.csv
 bert_model: bert-base-uncased
 cache_dir: ./cache_dir/
 
-result_dir: ./results/clslog/bgl_demo/
+result_dir: ./results/clslog/bgl_demo_stratified/
 
-split_method: sequential
-train_ratio: 0.8
-gap_days: 0
+split_method: stratified
+test_ratio: 0.2
+valid_ratio: 0.1
 sample_size: null
 
-window_size: 5
-step_size: 5
+window_size: 10
+step_size: 10
 embedding_method: mean
 emb_batch_size: 32
 
 use_hdbscan: false
-min_cluster_size: 3
-min_samples: 1
+sm_only_mode: true
 
-k: 3
-confidence_threshold: 0.9
+k: 5
+eval_split: valid
 
 use_siamese_network: true
-cl_num_epochs: 2
-batch_size: 64
-eval_in_train: false
+cl_num_epochs: 20
+batch_size: 128
+eval_in_train: true
 
 use_large_model: false
 use_cache: false

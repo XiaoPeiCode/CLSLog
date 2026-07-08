@@ -1,0 +1,26 @@
+# Secrets & local overrides
+config/llm_local.yaml
+.env
+
+# Data & artifacts
+dataset/
+cache_dir/
+/results/
+logs/
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# IDE
+.idea/
+
+# OS
+.DS_Store
+
+# Large local files (keep papers out of git)
+*.pdf

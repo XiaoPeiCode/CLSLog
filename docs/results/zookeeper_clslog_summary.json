@@ -1,0 +1,32 @@
+{
+  "dataset": "Zookeeper",
+  "split_method": "stratified",
+  "experiment_date": "2026-06-15",
+  "sm_only_metrics": {
+    "f1": 0.9474,
+    "precision": 1.0,
+    "recall": 0.9
+  },
+  "clslog_metrics": {
+    "f1": 1.0,
+    "precision": 1.0,
+    "recall": 1.0
+  },
+  "paper_target_sm_f1": 0.7217,
+  "paper_target_clslog_f1": 0.993,
+  "confidence_threshold": 0.999986,
+  "routing": {
+    "high_confidence": {
+      "count": 1402,
+      "ratio": 0.942,
+      "sm_f1": 1.0
+    },
+    "low_confidence": {
+      "count": 86,
+      "ratio": 0.058,
+      "sm_f1": 0.0,
+      "llm_f1": 1.0
+    }
+  },
+  "notes": "Low-confidence subset contains 83 normal + 3 abnormal samples. SM misses all 3 abnormal cases; LLM recovers them with the general evolutionary prompt."
+}

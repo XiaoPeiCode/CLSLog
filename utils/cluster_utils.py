@@ -1,10 +1,10 @@
-import faiss
 import numpy as np
 import hdbscan
 import joblib
 import os
 
 def apply_faiss_hdbscan(train_embeddings, train_labels, num_neighbors=10, min_cluster_size=15, min_samples=1, cache_path=None):
+    import faiss
     """
     结合 FAISS 和 HDBSCAN 进行聚类降维，加速大规模数据集处理。
     

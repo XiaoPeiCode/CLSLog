@@ -1,9 +1,13 @@
+# Zookeeper CLSLog routing config (recorded 2026-06-15)
+# Reproduces confidence-based evolutionary log selection experiment.
+# Run: python3 CLSLog.py --config ./config/clslog_zookeeper_routing.yaml
+
 dataset_name: Zookeeper
 dataset_dir: dataset
 bert_model: bert-base-uncased
 cache_dir: ./cache_dir/
 
-result_dir: ./results/clslog/zookeeper/
+result_dir: ./results/clslog/zookeeper_routing/
 
 split_method: stratified
 test_ratio: 0.2
@@ -19,7 +23,7 @@ emb_batch_size: 64
 use_hdbscan: false
 
 sm_only_mode: true
-enable_confidence_routing: false
+enable_confidence_routing: true
 tune_k_on_valid: true
 k: 4
 score_threshold: 0.0

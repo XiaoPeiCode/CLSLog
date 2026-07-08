@@ -1,0 +1,12 @@
+# Copy to llm_local.yaml and fill in credentials (llm_local.yaml is gitignored).
+
+base_url: https://api.openai.com/v1
+api_key: your-api-key-here
+model: gpt-4o-mini
+temperature: 0.01
+top_p: 0.95
+batch_size: 8
+response_format: true
+
+# Optional: enable dataset-specific rule postprocess fallback
+# llm_rule_postprocess: false

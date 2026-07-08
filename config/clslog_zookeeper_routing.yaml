@@ -1,7 +1,3 @@
-# Zookeeper CLSLog routing config (recorded 2026-06-15)
-# Reproduces confidence-based evolutionary log selection experiment.
-# Run: python3 CLSLog.py --config ./config/clslog_zookeeper_routing.yaml
-
 dataset_name: Zookeeper
 dataset_dir: dataset
 bert_model: bert-base-uncased

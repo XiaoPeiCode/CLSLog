@@ -1,4 +1,4 @@
-"""Hyperparameter search for Zookeeper SM-only pipeline (valid-driven selection)."""
+"""Hyperparameter search for Zookeeper SM pipeline."""
 
 import argparse
 import copy

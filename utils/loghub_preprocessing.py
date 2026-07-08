@@ -1,7 +1,5 @@
 """
 LogHub data preprocessing for CLSLog.
-
-Uses vendored Drain parser (utils/drain.py) and BERT embeddings on raw log Content.
 """
 
 import os

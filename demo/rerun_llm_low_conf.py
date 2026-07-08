@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""Re-run LLM on exported low-confidence cases without retraining SM."""
+"""Re-run LLM on exported low-confidence cases."""
 
 import argparse
 import json

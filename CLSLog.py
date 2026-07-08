@@ -1,11 +1,4 @@
-"""
-CLSLog: Collaborating Large and Small Models for Log-based Anomaly Detection.
-
-This is the initial cascade version (FSE Companion 2025):
-1. Train a Siamese small model with contrastive loss on historical logs.
-2. Route high-confidence samples to the small model; low-confidence samples to the LLM.
-3. Inject top-k context and SM scores into the LLM prompt for knowledge enhancement.
-"""
+"""CLSLog: small-model + LLM cascade for log anomaly detection."""
 
 import argparse
 import copy
@@ -671,7 +664,6 @@ def main(config):
         'enable_confidence_routing': enable_routing,
         'sm_only_metrics': sm_metrics,
         'metrics': clslog_metrics if not sm_only_mode else sm_metrics,
-        'paper_target_sm_f1': {'BGL': 0.834, 'Zookeeper': 0.7217}.get(config['dataset_name']),
         'train_size': int(len(train_df)),
         'valid_size': int(len(valid_df)),
         'test_size': int(len(test_df)),

@@ -1,7 +1,5 @@
 """
-LogHub dataset download and Drain-based log parsing.
-
-Vendored from LogPAI Drain (MIT) via LogCAE preprocessing, adapted for standalone CLSLog.
+LogHub download and Drain parsing.
 """
 
 import os
